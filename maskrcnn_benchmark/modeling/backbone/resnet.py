@@ -299,9 +299,26 @@ class Bottleneck(nn.Module):
         out = self.bn1(out)
         out = F.relu_(out)
 
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = F.relu_(out)
+        out1 = self.conv2(out)
+        out2 = self.conv2(out1)
+        out3 = self.conv2(out2)
+
+        out1 = self.bn2(out1)
+        out1 = F.relu_(out1)
+        out2 = self.bn2(out2)
+        out2 = F.relu_(out2)
+        out3 = self.bn2(out3)
+        out3 = F.relu_(out3)
+
+        w_1 = F.avg_pool2d(out1)
+        w_2 = F.avg_pool2d(out2)
+        w_3 = F.avg_pool2d(out3)
+
+        w_1 = w_1 / w_1.max()
+        w_2 = w_2 / w_2.max()
+        w_3 = w_3 / w_3.max()
+
+        out = w_1 * out1 + w_2 * out2 + w_3 * out3
 
         out0 = self.conv3(out)
         out = self.bn3(out0)
