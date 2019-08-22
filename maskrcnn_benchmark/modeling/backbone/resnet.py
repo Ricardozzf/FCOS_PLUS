@@ -289,6 +289,8 @@ class Bottleneck(nn.Module):
         )
         self.bn3 = norm_func(out_channels)
 
+        self.globalAvgPool = nn.AdaptiveAvgPool2d((1,1))
+
         for l in [self.conv1, self.conv2, self.conv3,]:
             nn.init.kaiming_uniform_(l.weight, a=1)
 
@@ -310,13 +312,13 @@ class Bottleneck(nn.Module):
         out3 = self.bn2(out3)
         out3 = F.relu_(out3)
 
-        w_1 = F.avg_pool2d(out1)
-        w_2 = F.avg_pool2d(out2)
-        w_3 = F.avg_pool2d(out3)
+        w_1 = self.globalAvgPool(out1)
+        w_2 = self.globalAvgPool(out2)
+        w_3 = self.globalAvgPool(out3)
 
-        w_1 = w_1 / w_1.max()
-        w_2 = w_2 / w_2.max()
-        w_3 = w_3 / w_3.max()
+        w_1 = w_1 / w_1.max(1)[0].unsqueeze(1)
+        w_2 = w_2 / w_2.max(1)[0].unsqueeze(1)
+        w_3 = w_3 / w_3.max(1)[0].unsqueeze(1)
 
         out = w_1 * out1 + w_2 * out2 + w_3 * out3
 
