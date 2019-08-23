@@ -319,9 +319,9 @@ class Bottleneck(nn.Module):
         w_2 = self.globalAvgPool(out2)
         w_3 = self.globalAvgPool(out3)
 
-        w_1 = w_1 / (w_1 + w_2 + w_3)
-        w_2 = w_2 / (w_1 + w_2 + w_3)
-        w_3 = w_3 / (w_1 + w_2 + w_3)
+        w_1 = self.fc2(self.fc1(w_1))
+        w_2 = self.fc2(self.fc1(w_2))
+        w_3 = self.fc2(self.fc1(w_3))
 
         out = w_1 * out1 + w_2 * out2 + w_3 * out3
 
