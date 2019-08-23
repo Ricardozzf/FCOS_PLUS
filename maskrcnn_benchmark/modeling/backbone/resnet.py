@@ -320,6 +320,10 @@ class Bottleneck(nn.Module):
         w_2 = w_2 / w_2.max(1)[0].unsqueeze(1)
         w_3 = w_3 / w_3.max(1)[0].unsqueeze(1)
 
+        w_1 = w_1 / (w_1 + w_2 + w_3)
+        w_2 = w_2 / (w_1 + w_2 + w_3)
+        w_3 = w_3 / (w_1 + w_2 + w_3)
+
         out = w_1 * out1 + w_2 * out2 + w_3 * out3
 
         out0 = self.conv3(out)
