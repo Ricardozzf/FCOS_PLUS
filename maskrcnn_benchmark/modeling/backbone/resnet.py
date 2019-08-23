@@ -272,8 +272,10 @@ class Bottleneck(nn.Module):
         self.bn1 = norm_func(bottleneck_channels)
         # TODO: specify init for the above
 
-        self.share_weight = nn.Parameter(torch.empty(bottleneck_channels, bottleneck_channels, 3, 3))
-
+        self.conv2 = Conv2d(
+            bottleneck_channels, bottleneck_channels, kernel_size=3, bias=False
+        )
+        self.share_weight = self.conv2.weight
         self.bn2 = norm_func(bottleneck_channels)
 
         self.conv3 = Conv2d(
@@ -332,8 +334,8 @@ class Bottleneck(nn.Module):
         out = F.relu_(out)
 
         out1 = nn.functional.conv2d(out, self.share_weight, bias=None, stride=1, padding=1, dilation=1)
-        out2 = nn.functional.conv2d(out, self.share_weight, bias=None, stride=1, padding=1, dilation=2)
-        out3 = nn.functional.conv2d(out, self.share_weight, bias=None, stride=1, padding=1, dilation=3)
+        out2 = nn.functional.conv2d(out, self.share_weight, bias=None, stride=1, padding=2, dilation=2)
+        out3 = nn.functional.conv2d(out, self.share_weight, bias=None, stride=1, padding=3, dilation=3)
 
         out1 = F.relu_(self.bn2(out1))
         out2 = F.relu_(self.bn2(out2))
