@@ -273,13 +273,13 @@ class Bottleneck(nn.Module):
         # TODO: specify init for the above
 
         self.conv2 = Conv2d(
-            bottleneck_channels, bottleneck_channels, kernel_size=3, bias=False
+            bottleneck_channels, bottleneck_channels, kernel_size=3, padding=1, bias=False
         )
         self.conv2_1 = Conv2d(
-            bottleneck_channels, bottleneck_channels, kernel_size=3, bias=False
+            bottleneck_channels, bottleneck_channels, kernel_size=3, padding=1, bias=False
         )
         self.conv2_2 = Conv2d(
-            bottleneck_channels, bottleneck_channels, kernel_size=3, bias=False
+            bottleneck_channels, bottleneck_channels, kernel_size=3, padding=1, bias=False
         )
         #self.share_weight = self.conv2.weight
         self.bn2 = norm_func(bottleneck_channels)
