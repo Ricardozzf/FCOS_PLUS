@@ -275,7 +275,13 @@ class Bottleneck(nn.Module):
         self.conv2 = Conv2d(
             bottleneck_channels, bottleneck_channels, kernel_size=3, bias=False
         )
-        self.share_weight = self.conv2.weight
+        self.conv2_1 = Conv2d(
+            bottleneck_channels, bottleneck_channels, kernel_size=3, bias=False
+        )
+        self.conv2_2 = Conv2d(
+            bottleneck_channels, bottleneck_channels, kernel_size=3, bias=False
+        )
+        #self.share_weight = self.conv2.weight
         self.bn2 = norm_func(bottleneck_channels)
 
         self.conv3 = Conv2d(
@@ -283,14 +289,14 @@ class Bottleneck(nn.Module):
         )
         self.bn3 = norm_func(out_channels)
 
-        self.globalAvgPool = nn.AdaptiveAvgPool2d((1,1))
+        #self.globalAvgPool = nn.AdaptiveAvgPool2d((1,1))
         #self.fc1 = nn.Linear(in_features=out_channels, out_features=round(out_channels / 8))
         #self.fc2 = nn.Linear(in_features=round(out_channels / 8), out_features=out_channels)
-        self.sigmoid = nn.Sigmoid()
+        #self.sigmoid = nn.Sigmoid()
 
-        for l in [self.conv1, self.conv3,]:
+        for l in [self.conv1, self.conv2, self.conv2_1, self.conv2_2, self.conv3,]:
             nn.init.kaiming_uniform_(l.weight, a=1)
-        nn.init.kaiming_uniform_(self.share_weight, a=1)
+        #nn.init.kaiming_uniform_(self.share_weight, a=1)
 
     def forward(self, x):
         '''
@@ -332,22 +338,40 @@ class Bottleneck(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = F.relu_(out)
-
+        
+        '''
         out1 = nn.functional.conv2d(out, self.share_weight, bias=None, stride=1, padding=1, dilation=1)
         out2 = nn.functional.conv2d(out, self.share_weight, bias=None, stride=1, padding=2, dilation=2)
         out3 = nn.functional.conv2d(out, self.share_weight, bias=None, stride=1, padding=3, dilation=3)
+        '''
+
+        out1 = self.conv2(out)
+        out2 = self.conv2_1(out1)
+        out3 = self.conv2_2(out2)
 
         out1 = F.relu_(self.bn2(out1))
         out2 = F.relu_(self.bn2(out2))
         out3 = F.relu_(self.bn2(out3))
 
+        w1 = out1.max(2)[0].unsqueeze(2)
+        w2 = out2.max(2)[0].unsqueeze(2)
+        w3 = out3.max(2)[0].unsqueeze(2)
+        h1 = out1.max(3)[0].unsqueeze(3)
+        h2 = out2.max(3)[0].unsqueeze(3)
+        h3 = out3.max(3)[0].unsqueeze(3)
+
+        out = out1*w1 + out1*h1 + out2*w2 + out2*h2 + out3*w3 + out3*h3
+        
+
+
+        '''
         w1 = self.globalAvgPool(out1)
         w2 = self.globalAvgPool(out2) 
-        w3 = self.globalAvgPool(out3) 
-
-        out = w1*out1 + w2*out2 + w3*out3
+        w3 = self.globalAvgPool(out3)
+        '''
 
         out = self.conv3(out)
+
         out = self.bn3(out)
 
         if self.downsample is not None:
