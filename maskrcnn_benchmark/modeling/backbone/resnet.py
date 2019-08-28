@@ -353,12 +353,12 @@ class Bottleneck(nn.Module):
         out2 = F.relu_(self.bn2(out2))
         out3 = F.relu_(self.bn2(out3))
 
-        w1 = out1.max(2)[0].unsqueeze(2)
-        w2 = out2.max(2)[0].unsqueeze(2)
-        w3 = out3.max(2)[0].unsqueeze(2)
-        h1 = out1.max(3)[0].unsqueeze(3)
-        h2 = out2.max(3)[0].unsqueeze(3)
-        h3 = out3.max(3)[0].unsqueeze(3)
+        w1 = out1.max(2)[0].unsqueeze(2) / out1.max()
+        w2 = out2.max(2)[0].unsqueeze(2) / out2.max()
+        w3 = out3.max(2)[0].unsqueeze(2) / out3.max()
+        h1 = out1.max(3)[0].unsqueeze(3) / out1.max()
+        h2 = out2.max(3)[0].unsqueeze(3) / out2.max()
+        h3 = out3.max(3)[0].unsqueeze(3) / out3.max()
 
         out = out1*w1 + out1*h1 + out2*w2 + out2*h2 + out3*w3 + out3*h3
         
