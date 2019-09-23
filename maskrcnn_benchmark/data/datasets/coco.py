@@ -8,6 +8,7 @@ from maskrcnn_benchmark.structures.keypoint import PersonKeypoints
 
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 min_keypoints_per_image = 10
 
 

@@ -283,6 +283,8 @@ class Bottleneck(nn.Module):
         )
         #self.share_weight = self.conv2.weight
         self.bn2 = norm_func(bottleneck_channels)
+        self.bn2_1 = norm_func(bottleneck_channels)
+        self.bn2_2 = norm_func(bottleneck_channels)
 
         self.conv3 = Conv2d(
             bottleneck_channels, out_channels, kernel_size=1, bias=False
@@ -350,8 +352,8 @@ class Bottleneck(nn.Module):
         out3 = self.conv2_2(out2)
 
         out1 = F.relu_(self.bn2(out1))
-        out2 = F.relu_(self.bn2(out2))
-        out3 = F.relu_(self.bn2(out3))
+        out2 = F.relu_(self.bn2_1(out2))
+        out3 = F.relu_(self.bn2_2(out3))
 
         w1 = out1.max(2)[0].unsqueeze(2) / out1.max()
         w2 = out2.max(2)[0].unsqueeze(2) / out2.max()
