@@ -1,0 +1,35 @@
+MODEL:
+  META_ARCHITECTURE: "GeneralizedRCNN"
+  WEIGHT: "https://s3.amazonaws.com/pytorch/models/resnet18-5c106cde.pth"
+  RPN_ONLY: True
+  FCOS_ON: True
+  BACKBONE:
+    CONV_BODY: "R-18-C5"
+  RESNETS:
+    BACKBONE_OUT_CHANNELS: 256
+    TRANS_FUNC: NoBottleneckWithFixdBatchNorm
+  RETINANET:
+    USE_C5: True # FCOS uses P5 instead of C5
+  FCOS:
+    CENTER_SAMPLE: True
+    POS_RADIUS: 1.5
+    LOC_LOSS_TYPE: "giou"
+DATASETS:
+  TRAIN: ("carface_train", )
+  TEST: ("carface_test", )
+INPUT:
+  MIN_SIZE_TRAIN: (800,)
+  MAX_SIZE_TRAIN: 1333
+  MIN_SIZE_TEST: 800
+  MAX_SIZE_TEST: 1333
+DATALOADER:
+  SIZE_DIVISIBILITY: 32
+SOLVER:
+  BASE_LR: 0.01
+  WEIGHT_DECAY: 0.0001
+  STEPS: (60000, 80000)
+  MAX_ITER: 90000
+  IMS_PER_BATCH: 16
+  WARMUP_METHOD: "constant"
+
+  MODEL.RESNETS.TRANS_FUNC = "BottleneckWithFixedBatchNorm"

@@ -9,7 +9,7 @@ from . import fpn as fpn_module
 from . import resnet
 from . import mobilenet
 
-
+@registry.BACKBONES.register("R-18-C5")
 @registry.BACKBONES.register("R-50-C4")
 @registry.BACKBONES.register("R-50-C5")
 @registry.BACKBONES.register("R-101-C4")

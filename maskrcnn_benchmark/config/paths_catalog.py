@@ -103,12 +103,20 @@ class DatasetCatalog(object):
         "cityscapes_fine_instanceonly_seg_test_cocostyle": {
             "img_dir": "cityscapes/images",
             "ann_file": "cityscapes/annotations/instancesonly_filtered_gtFine_test.json"
+        },
+        "carface_train": {
+            "img_dir": "carface/train2017",
+            "ann_file": "carface/annotations/instances_train2017.json"
+        },
+        "carface_test": {
+            "img_dir": "carface/test2017",
+            "ann_file": "carface/annotations/instances_test2017.json"
         }
     }
 
     @staticmethod
     def get(name):
-        if "coco" in name:
+        if "coco" in name or "carface" in name:
             data_dir = DatasetCatalog.DATA_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
