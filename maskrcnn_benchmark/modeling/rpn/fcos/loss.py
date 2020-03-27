@@ -73,11 +73,7 @@ class FCOSLossComputation(object):
 
     def prepare_targets(self, points, targets):
         object_sizes_of_interest = [
-            [-1, 64],
-            [64, 128],
-            [128, 256],
-            [256, 512],
-            [512, INF],
+            [-INF, INF],
         ]
         expanded_object_sizes_of_interest = []
         for l, points_per_level in enumerate(points):

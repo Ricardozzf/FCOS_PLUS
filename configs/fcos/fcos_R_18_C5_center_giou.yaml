@@ -6,7 +6,8 @@ MODEL:
   BACKBONE:
     CONV_BODY: "R-18-C5"
   RESNETS:
-    BACKBONE_OUT_CHANNELS: 256
+    RES2_OUT_CHANNELS: 64
+    BACKBONE_OUT_CHANNELS: 512
     TRANS_FUNC: NoBottleneckWithFixdBatchNorm
   RETINANET:
     USE_C5: True # FCOS uses P5 instead of C5
@@ -14,6 +15,8 @@ MODEL:
     CENTER_SAMPLE: True
     POS_RADIUS: 1.5
     LOC_LOSS_TYPE: "giou"
+    NUM_CLASSES : 2
+    FPN_STRIDES: [32,]
 DATASETS:
   TRAIN: ("carface_train", )
   TEST: ("carface_test", )
