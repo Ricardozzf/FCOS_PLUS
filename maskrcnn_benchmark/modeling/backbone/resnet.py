@@ -79,7 +79,7 @@ ResNet152FPNStagesTo5 = tuple(
 
 ResNet18StagesTo5 = tuple(
     StageSpec(index=i, block_count=c, return_features=r)
-    for (i, c, r) in ((1, 2, False), (2, 2, False), (3, 4, True))
+    for (i, c, r) in ((1, 2, False), (2, 2, False), (3, 2, False), (4, 2, True))
 )
 
 class ResNet(nn.Module):
@@ -120,6 +120,7 @@ class ResNet(nn.Module):
                 num_groups,
                 cfg.MODEL.RESNETS.STRIDE_IN_1X1,
                 first_stride=int(stage_spec.index > 1) + 1,
+                index=stage_spec.index
             )
             in_channels = out_channels
             self.add_module(name, module)
@@ -187,7 +188,8 @@ class ResNetHead(nn.Module):
                 num_groups,
                 stride_in_1x1,
                 first_stride=stride,
-                dilation=dilation
+                dilation=dilation,
+                index=stage.index,
             )
             stride = None
             self.add_module(name, module)
@@ -209,10 +211,11 @@ def _make_stage(
     num_groups,
     stride_in_1x1,
     first_stride,
-    dilation=1
+    dilation=1,
+    index=1,
 ):
     blocks = []
-    stride = first_stride
+    stride = first_stride if index!=4 else 1
     for _ in range(block_count):
         blocks.append(
             transformation_module(
