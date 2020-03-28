@@ -12,11 +12,11 @@ MODEL:
   RETINANET:
     USE_C5: True # FCOS uses P5 instead of C5
   FCOS:
-    CENTER_SAMPLE: True
+    CENTER_SAMPLE: False
     POS_RADIUS: 1.5
     LOC_LOSS_TYPE: "giou"
     NUM_CLASSES : 2
-    FPN_STRIDES: [32,]
+    FPN_STRIDES: [16,]
 DATASETS:
   TRAIN: ("carface_train", )
   TEST: ("carface_test", )

@@ -79,7 +79,7 @@ ResNet152FPNStagesTo5 = tuple(
 
 ResNet18StagesTo5 = tuple(
     StageSpec(index=i, block_count=c, return_features=r)
-    for (i, c, r) in ((1, 2, False), (2, 2, False), (3, 2, False), (4, 2, True))
+    for (i, c, r) in ((1, 2, False), (2, 2, False), (3, 4, True))
 )
 
 class ResNet(nn.Module):
