@@ -40,6 +40,9 @@ def group_norm(out_channels, affine=True, divisor=1):
         affine
     )
 
+def bn_norm(out_channels):
+    return torch.nn.BatchNorm2d(out_channels)
+
 
 def make_conv3x3(
     in_channels, 

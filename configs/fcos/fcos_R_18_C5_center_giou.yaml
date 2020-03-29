@@ -1,13 +1,15 @@
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
-  WEIGHT: "https://s3.amazonaws.com/pytorch/models/resnet18-5c106cde.pth"
+  WEIGHT: ""
   RPN_ONLY: True
   FCOS_ON: True
   BACKBONE:
     CONV_BODY: "R-18-C5"
   RESNETS:
-    RES2_OUT_CHANNELS: 64
-    BACKBONE_OUT_CHANNELS: 512
+    STEM_OUT_CHANNELS: 32
+    RES2_OUT_CHANNELS: 32
+    WIDTH_PER_GROUP: 32
+    BACKBONE_OUT_CHANNELS: 256
     TRANS_FUNC: NoBottleneckWithFixdBatchNorm
   RETINANET:
     USE_C5: True # FCOS uses P5 instead of C5

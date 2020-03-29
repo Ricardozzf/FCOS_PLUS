@@ -24,7 +24,7 @@ from torch import nn
 
 from maskrcnn_benchmark.layers import FrozenBatchNorm2d
 from maskrcnn_benchmark.layers import Conv2d
-from maskrcnn_benchmark.modeling.make_layers import group_norm
+from maskrcnn_benchmark.modeling.make_layers import group_norm, bn_norm
 from maskrcnn_benchmark.utils.registry import Registry
 
 
@@ -361,14 +361,14 @@ class BottleneckWithFixedBatchNorm(Bottleneck):
             stride_in_1x1=stride_in_1x1,
             stride=stride,
             dilation=dilation,
-            norm_func=FrozenBatchNorm2d
+            norm_func=bn_norm
         )
 
 
 class StemWithFixedBatchNorm(BaseStem):
     def __init__(self, cfg):
         super(StemWithFixedBatchNorm, self).__init__(
-            cfg, norm_func=FrozenBatchNorm2d
+            cfg, norm_func=bn_norm
         )
 
 
@@ -497,7 +497,7 @@ class NoBottleneckWithFixdBatchNorm(NoBottleneck):
             stride_in_1x1=stride_in_1x1,
             stride=stride,
             dilation=dilation,
-            norm_func=FrozenBatchNorm2d
+            norm_func=bn_norm
         )
 
 class StemWithGN(BaseStem):
