@@ -62,4 +62,4 @@ class IOULoss(nn.Module):
         iou_wh = insert_wh / bb_wh
         loss_wh = -torch.log(iou_wh).mean()
         
-        return losses + loss_wh
+        return losses + loss_wh*0.5
