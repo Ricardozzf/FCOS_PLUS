@@ -76,7 +76,7 @@ class RPNPostProcessor(torch.nn.Module):
         Arguments:
             anchors: list[BoxList]
             objectness: tensor of size N, A, H, W
-            box_regression: tensor of size N, A * 4, H, W
+            box_regression: tensor of size N, A * 6, H, W
         """
         device = objectness.device
         N, A, H, W = objectness.shape

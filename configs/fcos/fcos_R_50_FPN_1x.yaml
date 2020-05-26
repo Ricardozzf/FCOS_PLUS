@@ -12,8 +12,8 @@ MODEL:
   FCOS:
     CENTER_SAMPLE: False
 DATASETS:
-  TRAIN: ("coco_2017_train", )
-  TEST: ("coco_2017_val", )
+  TRAIN: ("Crowdhuman_coco_train", )
+  TEST: ("Crowdhuman_coco_val", )
 INPUT:
   MIN_SIZE_TRAIN: (800,)
   MAX_SIZE_TRAIN: 1333
@@ -26,5 +26,5 @@ SOLVER:
   WEIGHT_DECAY: 0.0001
   STEPS: (60000, 80000)
   MAX_ITER: 90000
-  IMS_PER_BATCH: 16
+  IMS_PER_BATCH: 2
   WARMUP_METHOD: "constant"

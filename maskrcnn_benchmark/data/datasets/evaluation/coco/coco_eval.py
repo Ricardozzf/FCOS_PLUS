@@ -80,6 +80,8 @@ def prepare_for_coco_detection(predictions, dataset):
         image_height = img_info["height"]
         prediction = prediction.resize((image_width, image_height))
         prediction = prediction.convert("xywh")
+        if prediction.vwvh is None and prediction.vis:
+            prediction.remove_vwvh()
 
         boxes = prediction.bbox.tolist()
         scores = prediction.get_field("scores").tolist()

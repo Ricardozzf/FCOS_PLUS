@@ -28,7 +28,7 @@ class BoxCoder(object):
             reference_boxes (Tensor): reference boxes
             proposals (Tensor): boxes to be encoded
         """
-
+        raise ValueError("This branch should not use this func!")
         TO_REMOVE = 1  # TODO remove
         ex_widths = proposals[:, 2] - proposals[:, 0] + TO_REMOVE
         ex_heights = proposals[:, 3] - proposals[:, 1] + TO_REMOVE
@@ -58,7 +58,7 @@ class BoxCoder(object):
             rel_codes (Tensor): encoded boxes
             boxes (Tensor): reference boxes.
         """
-
+        raise ValueError("This branch should not use this func!")
         boxes = boxes.to(rel_codes.dtype)
 
         TO_REMOVE = 1  # TODO remove

@@ -20,6 +20,8 @@ def boxlist_nms(boxlist, nms_thresh, max_proposals=-1, score_field="scores"):
     """
     if nms_thresh <= 0:
         return boxlist
+    if boxlist.vis:
+        boxlist.remove_vwvh()
     mode = boxlist.mode
     boxlist = boxlist.convert("xyxy")
     boxes = boxlist.bbox
@@ -28,6 +30,8 @@ def boxlist_nms(boxlist, nms_thresh, max_proposals=-1, score_field="scores"):
     if max_proposals > 0:
         keep = keep[: max_proposals]
     boxlist = boxlist[keep]
+    if boxlist.vis:
+        boxlist.cat_vwvh()
     return boxlist.convert(mode)
 
 

@@ -52,8 +52,8 @@ class FCOSPostProcessor(torch.nn.Module):
         # put in the same format as locations
         box_cls = box_cls.view(N, C, H, W).permute(0, 2, 3, 1)
         box_cls = box_cls.reshape(N, -1, self.num_classes - 1).sigmoid()
-        box_regression = box_regression.view(N, self.dense_points * 4, H, W).permute(0, 2, 3, 1)
-        box_regression = box_regression.reshape(N, -1, 4)
+        box_regression = box_regression.view(N, self.dense_points * 6, H, W).permute(0, 2, 3, 1)
+        box_regression = box_regression.reshape(N, -1, 6)
         centerness = centerness.view(N, self.dense_points, H, W).permute(0, 2, 3, 1)
         centerness = centerness.reshape(N, -1).sigmoid()
 
@@ -92,6 +92,8 @@ class FCOSPostProcessor(torch.nn.Module):
                 per_locations[:, 1] - per_box_regression[:, 1],
                 per_locations[:, 0] + per_box_regression[:, 2],
                 per_locations[:, 1] + per_box_regression[:, 3],
+                per_box_regression[:, 4],
+                per_box_regression[:, 5]
             ], dim=1)
 
             h, w = image_sizes[i]

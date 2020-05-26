@@ -103,7 +103,15 @@ class DatasetCatalog(object):
         "cityscapes_fine_instanceonly_seg_test_cocostyle": {
             "img_dir": "cityscapes/images",
             "ann_file": "cityscapes/annotations/instancesonly_filtered_gtFine_test.json"
-        }
+        },
+        "Crowdhuman_coco_train": {
+            "img_dir": "CrowdCoco/train",
+            "ann_file": "CrowdCoco/annotations/train.json"
+        },
+        "Crowdhuman_coco_val": {
+            "img_dir": "CrowdCoco/val",
+            "ann_file": "CrowdCoco/annotations/val.json"
+        },
     }
 
     @staticmethod
