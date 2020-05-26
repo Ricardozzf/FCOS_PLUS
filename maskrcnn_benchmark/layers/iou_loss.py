@@ -61,5 +61,5 @@ class IOULoss(nn.Module):
         bb_wh = torch.max(pred_w, target_w) * torch.max(pred_h, target_h)
         iou_wh = insert_wh / bb_wh
         loss_wh = -torch.log(iou_wh).mean()
-        import pdb; pdb.set_trace()
+        
         return losses + loss_wh
