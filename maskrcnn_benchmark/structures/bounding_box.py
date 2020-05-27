@@ -142,7 +142,7 @@ class BoxList(object):
             v_h *= ratio_height
             tuple_add = (v_w, v_h)
         else:
-            xmin, ymin, xmax, ymax = self._split_into_xyxywh()
+            xmin, ymin, xmax, ymax = self._split_into_xyxy()
             tuple_add = ()
         scaled_xmin = xmin * ratio_width
         scaled_xmax = xmax * ratio_width

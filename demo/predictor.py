@@ -10,100 +10,23 @@ from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark import layers as L
 from maskrcnn_benchmark.utils import cv2_util
 
+from maskrcnn_benchmark.structures.boxlist_ops import boxlist_nms, boxlist_iou
 
 class COCODemo(object):
     # COCO categories for pretty print
     CATEGORIES = [
         "__background",
         "person",
-        "bicycle",
-        "car",
-        "motorcycle",
-        "airplane",
-        "bus",
-        "train",
-        "truck",
-        "boat",
-        "traffic light",
-        "fire hydrant",
-        "stop sign",
-        "parking meter",
-        "bench",
-        "bird",
-        "cat",
-        "dog",
-        "horse",
-        "sheep",
-        "cow",
-        "elephant",
-        "bear",
-        "zebra",
-        "giraffe",
-        "backpack",
-        "umbrella",
-        "handbag",
-        "tie",
-        "suitcase",
-        "frisbee",
-        "skis",
-        "snowboard",
-        "sports ball",
-        "kite",
-        "baseball bat",
-        "baseball glove",
-        "skateboard",
-        "surfboard",
-        "tennis racket",
-        "bottle",
-        "wine glass",
-        "cup",
-        "fork",
-        "knife",
-        "spoon",
-        "bowl",
-        "banana",
-        "apple",
-        "sandwich",
-        "orange",
-        "broccoli",
-        "carrot",
-        "hot dog",
-        "pizza",
-        "donut",
-        "cake",
-        "chair",
-        "couch",
-        "potted plant",
-        "bed",
-        "dining table",
-        "toilet",
-        "tv",
-        "laptop",
-        "mouse",
-        "remote",
-        "keyboard",
-        "cell phone",
-        "microwave",
-        "oven",
-        "toaster",
-        "sink",
-        "refrigerator",
-        "book",
-        "clock",
-        "vase",
-        "scissors",
-        "teddy bear",
-        "hair drier",
-        "toothbrush",
     ]
 
     def __init__(
         self,
         cfg,
-        confidence_thresholds_for_classes,
+        confidence_threshold,
         show_mask_heatmaps=False,
         masks_per_dim=2,
         min_image_size=224,
+        weight_loading = None
     ):
         self.cfg = cfg.clone()
         self.model = build_detection_model(cfg)
@@ -116,6 +39,10 @@ class COCODemo(object):
         checkpointer = DetectronCheckpointer(cfg, self.model, save_dir=save_dir)
         _ = checkpointer.load(cfg.MODEL.WEIGHT)
 
+        if weight_loading:
+            print('Loading weight from {}.'.format(weight_loading))
+            _ = checkpointer._load_model(torch.load(weight_loading))
+
         self.transforms = self.build_transform()
 
         mask_threshold = -1 if show_mask_heatmaps else 0.5
@@ -125,7 +52,7 @@ class COCODemo(object):
         self.palette = torch.tensor([2 ** 25 - 1, 2 ** 15 - 1, 2 ** 21 - 1])
 
         self.cpu_device = torch.device("cpu")
-        self.confidence_thresholds_for_classes = torch.tensor(confidence_thresholds_for_classes)
+        self.confidence_threshold = confidence_threshold
         self.show_mask_heatmaps = show_mask_heatmaps
         self.masks_per_dim = masks_per_dim
 
@@ -159,7 +86,7 @@ class COCODemo(object):
         )
         return transform
 
-    def run_on_opencv_image(self, image):
+    def run_on_opencv_image(self, image, targets=None, err=None):
         """
         Arguments:
             image (np.ndarray): an image as returned by OpenCV
@@ -172,6 +99,36 @@ class COCODemo(object):
         predictions = self.compute_prediction(image)
         top_predictions = self.select_top_predictions(predictions)
 
+        top_predictions = boxlist_nms(top_predictions,0.5)
+        if targets is not None and top_predictions.bbox.shape[0]!=0:
+            
+            iou_m = boxlist_iou(top_predictions, targets)
+            try:
+                _, index = iou_m.max(1)
+            except RuntimeError:
+                import pdb; pdb.set_trace()
+            predict_match = targets[index]
+            import pdb; pdb.set_trace()
+            predict_match.cat_vwvh()
+            
+            for i in range(predict_match.bbox.shape[0]):
+                '''
+                print("pre_w:{}   pre_h:{}   gt_w:{}   gt_v:{}".format(top_predictions.bbox[i,4], \
+                    top_predictions.bbox[i,5], predict_match.bbox[i,4], predict_match.bbox[i,5]))
+                
+                '''
+                
+                err_w = ((top_predictions.bbox[i,4]-predict_match.bbox[i,4])/predict_match.bbox[i,4]).numpy()
+                err_h = ((top_predictions.bbox[i,5]-predict_match.bbox[i,5])/predict_match.bbox[i,5]).numpy()
+                gt_err_w = ((top_predictions.bbox[i,2]-top_predictions.bbox[i,0]-predict_match.bbox[i,2])/predict_match.bbox[i,2]).numpy()
+                gt_err_h = ((top_predictions.bbox[i,3]-top_predictions.bbox[i,1]-predict_match.bbox[i,3])/predict_match.bbox[i,3]).numpy()
+                iou_v = (predict_match.area()[i] / (predict_match.bbox[i,4] * predict_match.bbox[i,5])).numpy()
+                '''
+                if iou_v > 1.5:
+                    raise ValueError("iou_v must smaller than 1!")
+                '''
+                err.append([err_w, err_h,gt_err_w, gt_err_h,iou_v])
+            
         result = image.copy()
         if self.show_mask_heatmaps:
             return self.create_mask_montage(result, top_predictions)
@@ -237,8 +194,8 @@ class COCODemo(object):
         """
         scores = predictions.get_field("scores")
         labels = predictions.get_field("labels")
-        thresholds = self.confidence_thresholds_for_classes[(labels - 1).long()]
-        keep = torch.nonzero(scores > thresholds).squeeze(1)
+        #thresholds = self.confidence_thresholds_for_classes[(labels - 1).long()]
+        keep = torch.nonzero(scores > self.confidence_threshold).squeeze(1)
         predictions = predictions[keep]
         scores = predictions.get_field("scores")
         _, idx = scores.sort(0, descending=True)
@@ -268,9 +225,9 @@ class COCODemo(object):
 
         for box, color in zip(boxes, colors):
             box = box.to(torch.int64)
-            top_left, bottom_right = box[:2].tolist(), box[2:].tolist()
+            top_left, bottom_right = box[:2].tolist(), box[2:4].tolist()
             image = cv2.rectangle(
-                image, tuple(top_left), tuple(bottom_right), tuple(color), 2
+                image, tuple(top_left), tuple(bottom_right), tuple(color), 3
             )
 
         return image

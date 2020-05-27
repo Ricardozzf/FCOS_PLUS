@@ -5,7 +5,11 @@ import cv2
 from maskrcnn_benchmark.config import cfg
 from predictor import COCODemo
 
-import time
+import time, os
+from pycocotools.coco import COCO
+import torch
+from maskrcnn_benchmark.structures.bounding_box import BoxList
+import numpy as np
 
 
 def main():
@@ -19,13 +23,13 @@ def main():
     parser.add_argument(
         "--confidence-threshold",
         type=float,
-        default=0.7,
+        default=0.5,
         help="Minimum score for the prediction to be shown",
     )
     parser.add_argument(
         "--min-image-size",
         type=int,
-        default=224,
+        default=800,
         help="Smallest size of the image to feed to the model. "
             "Model was trained with 800, which gives best results",
     )
@@ -47,6 +51,16 @@ def main():
         default=None,
         nargs=argparse.REMAINDER,
     )
+    parser.add_argument(
+        "--img-dir",
+        type=str,
+        default="/home/zouzhaofan/Dataset/PublicData/face++/val",
+    )
+    parser.add_argument(
+        "--valjson",
+        type=str,
+        default='/home/zouzhaofan/Dataset/PublicData/face++/val_fwh.json',
+    )
 
     args = parser.parse_args()
 
@@ -54,6 +68,7 @@ def main():
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
+    path = args.img_dir
 
     # prepare object that handles inference plus adds predictions on top of image
     coco_demo = COCODemo(
@@ -62,17 +77,39 @@ def main():
         show_mask_heatmaps=args.show_mask_heatmaps,
         masks_per_dim=args.masks_per_dim,
         min_image_size=args.min_image_size,
+        weight_loading="/home/zouzhaofan/Work/Github/FCOS_PLUS/fcos_fwh/model_final.pth"
     )
 
-    cam = cv2.VideoCapture(0)
-    while True:
+    #cam = cv2.VideoCapture(0)
+    #while True:
+    coco_val = COCO(args.valjson)
+    cv2.namedWindow("COCO detections", 0)
+    err = []
+    for (key, value) in coco_val.imgs.items():
         start_time = time.time()
-        ret_val, img = cam.read()
-        composite = coco_demo.run_on_opencv_image(img)
+        #ret_val, img = cam.read()
+        img = cv2.imread(os.path.join(path, value["file_name"]))
+        annIds = coco_val.getAnnIds(imgIds=key)
+        anns = coco_val.loadAnns(annIds)
+        targets = []
+        for ann in anns:
+            targets.append(torch.tensor(ann["bbox"]))
+
+        targets = torch.cat(targets, 0)
+        targets = targets.view(-1,6)
+        img_size = (value['width'], value['height'])
+        
+        targets_boxlist = BoxList(targets[:,:4], img_size, mode="xywh")
+        targets_boxlist.vwvh = (targets[:, 4:]).to(torch.float32)
+        targets_boxlist.vis = True
+        composite = coco_demo.run_on_opencv_image(img, targets_boxlist, err)
         print("Time: {:.2f} s / img".format(time.time() - start_time))
         cv2.imshow("COCO detections", composite)
         if cv2.waitKey(1) == 27:
             break  # esc to quit
+
+    err = np.array(err)
+    np.savetxt("err.txt", err)
     cv2.destroyAllWindows()
 
 
