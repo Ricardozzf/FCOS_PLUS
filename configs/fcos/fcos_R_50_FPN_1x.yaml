@@ -11,6 +11,7 @@ MODEL:
     USE_C5: False # FCOS uses P5 instead of C5
   FCOS:
     CENTER_SAMPLE: False
+    NUM_CLASSES: 2
 DATASETS:
   TRAIN: ("Crowdhuman_coco_train", )
   TEST: ("Crowdhuman_coco_val", )

@@ -59,7 +59,7 @@ def main():
     parser.add_argument(
         "--valjson",
         type=str,
-        default='/home/zouzhaofan/Dataset/PublicData/face++/val_fwh.json',
+        default='/home/zouzhaofan/Dataset/PublicData/face++/val_fxywh.json',
     )
 
     args = parser.parse_args()
@@ -96,17 +96,19 @@ def main():
             targets.append(torch.tensor(ann["bbox"]))
 
         targets = torch.cat(targets, 0)
-        targets = targets.view(-1,6)
+
+        targets = targets.view(-1,8)
         img_size = (value['width'], value['height'])
         
         targets_boxlist = BoxList(targets[:,:4], img_size, mode="xywh")
+        targets_boxlist = targets_boxlist.convert("xyxy")
         targets_boxlist.vwvh = (targets[:, 4:]).to(torch.float32)
         targets_boxlist.vis = True
         composite = coco_demo.run_on_opencv_image(img, targets_boxlist, err)
         print("Time: {:.2f} s / img".format(time.time() - start_time))
-        cv2.imshow("COCO detections", composite)
-        if cv2.waitKey(1) == 27:
-            break  # esc to quit
+        #cv2.imshow("COCO detections", composite)
+        #if cv2.waitKey(1) == 27:
+        #    break  # esc to quit
 
     err = np.array(err)
     np.savetxt("err.txt", err)
