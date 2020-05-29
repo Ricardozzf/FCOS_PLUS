@@ -71,6 +71,9 @@ class FCOSLossComputation(object):
         inside_gt_bbox_mask = center_bbox.min(-1)[0] > 0
         return inside_gt_bbox_mask
 
+    def prepare_targets_f(self, points, targets):
+        
+
     def prepare_targets(self, points, targets):
         object_sizes_of_interest = [
             [-1, 64],
@@ -179,7 +182,7 @@ class FCOSLossComputation(object):
                       (top_bottom.min(dim=-1)[0] / top_bottom.max(dim=-1)[0])
         return torch.sqrt(centerness)
 
-    def __call__(self, locations, box_cls, box_regression, centerness, targets):
+    def __call__(self, locations, box_cls, box_regression, centerness, targets, locations_f=None, feat_f=None):
         """
         Arguments:
             locations (list[BoxList])
@@ -196,6 +199,7 @@ class FCOSLossComputation(object):
         N = box_cls[0].size(0)
         num_classes = box_cls[0].size(1) // self.dense_points
         labels, reg_targets = self.prepare_targets(locations, targets)
+        labels_f, reg_targets_f  = self.prepare_targets_f(locations_f, targets)
 
         box_cls_flatten = []
         box_regression_flatten = []

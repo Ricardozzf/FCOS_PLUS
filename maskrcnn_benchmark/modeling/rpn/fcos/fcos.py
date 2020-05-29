@@ -91,6 +91,60 @@ class FCOSHead(torch.nn.Module):
         return logits, bbox_reg, centerness
 
 
+class FCOSFuseFPN(torch.nn.Module):
+    def __init__(self, cfg, in_channels):
+        super(FCOSFuseFPN, self).__init__()
+        num_classes = cfg.MODEL.FCOS.NUM_CLASSES - 1
+        dense_points = cfg.MODEL.FCOS.DENSE_POINTS
+        tran_clstower = []
+        tran_regretower = []
+        tran_centertower = []
+        for i in range(1,6):
+            tran_clstower.append(
+                nn.ConvTranspose2d(i,i,2,2)
+            )
+            tran_centertower.append(
+                nn.ConvTranspose2d(i,i,2,2)
+            )
+            tran_regretower.append(
+                nn.ConvTranspose2d(6*i,6*i,2,2)
+            )
+
+        for modules in [tran_clstower, tran_centertower, tran_regretower]:
+            for l in modules:
+                if isinstance(l, nn.ConvTranspose2d):
+                    torch.nn.init.normal_(l.weight, std=0.01)
+                    torch.nn.init.constant_(l.bias, 0)
+        self.tran_clstower = nn.ModuleList(tran_clstower)
+        self.tran_regretower = nn.ModuleList(tran_regretower)
+        self.tran_centertower = nn.ModuleList(tran_centertower)
+
+        self.fuse_cls = nn.Conv2d(num_classes*5, num_classes, 3, 1, 1)
+        self.fuse_reg = nn.Conv2d(dense_points*6*5, dense_points*6, 3, 1, 1)
+        self.fuse_cet = nn.Conv2d(dense_points*5, dense_points, 3, 1, 1)
+
+
+    def forward(self, features, targets=None):
+        box_cls, box_regression, centerness = features
+        box_cls_tmp = box_cls[-1]
+        box_regression_tmp = box_regression[-1]
+        centerness_tmp = centerness[-1]
+        for i in range(4):
+            box_cls_tmp = torch.cat([self.tran_clstower[i](box_cls_tmp),box_cls[-i-2]], dim=1)
+            box_regression_tmp = torch.cat([self.tran_regretower[i](box_regression_tmp), box_regression[-i-2]], dim=1)
+            centerness_tmp = torch.cat([self.tran_centertower[i](centerness_tmp), centerness[-i-2]], dim=1)
+
+        box_cls = self.tran_clstower[-1](box_cls_tmp)
+        box_regression = self.tran_regretower[-1](box_regression_tmp)
+        centerness = self.tran_centertower[-1](centerness_tmp)
+
+        box_cls = self.fuse_cls(box_cls)
+        box_regression = self.fuse_reg(box_regression)
+        centerness = self.fuse_cet(centerness)
+
+        return box_cls, box_regression, centerness
+
+
 class FCOSModule(torch.nn.Module):
     """
     Module for FCOS computation. Takes feature maps from the backbone and
@@ -101,11 +155,12 @@ class FCOSModule(torch.nn.Module):
         super(FCOSModule, self).__init__()
 
         head = FCOSHead(cfg, in_channels)
-
+        fuseFPN = FCOSFuseFPN(cfg, in_channels)
         box_selector_test = make_fcos_postprocessor(cfg)
 
         loss_evaluator = make_fcos_loss_evaluator(cfg)
         self.head = head
+        self.fuseFPN = fuseFPN
         self.box_selector_test = box_selector_test
         self.loss_evaluator = loss_evaluator
         self.fpn_strides = cfg.MODEL.FCOS.FPN_STRIDES
@@ -127,7 +182,9 @@ class FCOSModule(torch.nn.Module):
                 testing, it is an empty dict.
         """
         box_cls, box_regression, centerness = self.head(features)
+        box_cls_f, box_regression_f, centerness_f = self.fuseFPN((box_cls, box_regression, centerness))
         locations = self.compute_locations(features)
+        locations_f = self.compute_locations_f(box_cls_f.shape[-2:], box_cls_f.device)
 
         if self.training:
             return self._forward_train(
@@ -158,6 +215,16 @@ class FCOSModule(torch.nn.Module):
             centerness, image_sizes
         )
         return boxes, {}
+
+    def compute_locations_f(self, image_sizes, device):
+        locations = []
+        h, w = image_sizes
+        locations_per_level = self.compute_locations_per_level(
+            h, w, 4,
+            device
+        )
+        locations.append(locations_per_level)
+        return locations
 
     def compute_locations(self, features):
         locations = []
