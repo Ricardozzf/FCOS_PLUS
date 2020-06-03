@@ -54,12 +54,12 @@ class IOULoss(nn.Module):
         n = torch.abs(pred_wh - target_wh)
         cond = n < beta
         loss_wh = torch.where(cond, 0.5*n**2 / beta, n - 0.5 * beta )
-        '''
+        
         pred_w, pred_h = pred[:,4], pred[:,5]
         target_w, target_h = target[:,4], target[:,5]
         insert_wh = torch.min(pred_w, target_w) * torch.min(pred_h, target_h)
         bb_wh = torch.max(pred_w, target_w) * torch.max(pred_h, target_h)
         iou_wh = insert_wh / bb_wh
         loss_wh = -torch.log(iou_wh).mean()
-        
-        return losses + loss_wh*0.5
+        '''
+        return losses 

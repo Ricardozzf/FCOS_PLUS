@@ -105,7 +105,7 @@ class DatasetCatalog(object):
             "ann_file": "cityscapes/annotations/instancesonly_filtered_gtFine_test.json"
         },
         "Crowdhuman_coco_train": {
-            "img_dir": "CrowdCoco/train",
+            "img_dir": "CrowdCoco/val",
             "ann_file": "CrowdCoco/annotations/train.json"
         },
         "Crowdhuman_coco_val": {

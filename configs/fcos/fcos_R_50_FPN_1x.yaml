@@ -1,6 +1,6 @@
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
-  WEIGHT: "fcos_fwh/model_final.pth"
+  WEIGHT: "pretrain_models/test.pt"
   RPN_ONLY: True
   FCOS_ON: True
   BACKBONE:
@@ -27,6 +27,6 @@ SOLVER:
   WEIGHT_DECAY: 0.0001
   STEPS: (60000, 80000)
   MAX_ITER: 90000
-  IMS_PER_BATCH: 2
+  IMS_PER_BATCH: 1
   WARMUP_METHOD: "constant"
 OUTPUT_DIR: "./fcos_fwh_t"

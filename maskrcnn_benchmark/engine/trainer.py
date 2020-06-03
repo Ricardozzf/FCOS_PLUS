@@ -9,6 +9,8 @@ import torch.distributed as dist
 from maskrcnn_benchmark.utils.comm import get_world_size, is_pytorch_1_1_0_or_later
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 
+from torch.utils.tensorboard import SummaryWriter
+
 
 def reduce_loss_dict(loss_dict):
     """
@@ -45,6 +47,7 @@ def do_train(
     checkpoint_period,
     arguments,
 ):
+    writer = SummaryWriter("log/fuseFPN")
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
@@ -107,6 +110,13 @@ def do_train(
                     memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
                 )
             )
+            writer.add_scalar("Class loss/loss_cls", meters.meters['loss_cls'].avg, iteration)
+            writer.add_scalar("Class loss/loss_cls_f", meters.meters['loss_cls_f'].avg, iteration)
+            writer.add_scalar("Reg loss/loss_reg", meters.meters['loss_reg'].avg, iteration)
+            writer.add_scalar("Reg loss/loss_box_reg_f", meters.meters['loss_box_reg_f'].avg, iteration)
+            writer.add_scalar("Loss/centerness", meters.meters['loss_centerness'].avg, iteration)
+            writer.add_scalar("Loss/loss", meters.meters['loss'].avg, iteration)
+
         if iteration % checkpoint_period == 0:
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
         if iteration == max_iter:

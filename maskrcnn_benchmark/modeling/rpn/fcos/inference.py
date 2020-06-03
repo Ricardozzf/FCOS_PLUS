@@ -52,8 +52,8 @@ class FCOSPostProcessor(torch.nn.Module):
         # put in the same format as locations
         box_cls = box_cls.view(N, C, H, W).permute(0, 2, 3, 1)
         box_cls = box_cls.reshape(N, -1, self.num_classes - 1).sigmoid()
-        box_regression = box_regression.view(N, self.dense_points * 6, H, W).permute(0, 2, 3, 1)
-        box_regression = box_regression.reshape(N, -1, 6)
+        box_regression = box_regression.view(N, self.dense_points * 4, H, W).permute(0, 2, 3, 1)
+        box_regression = box_regression.reshape(N, -1, 4)
         centerness = centerness.view(N, self.dense_points, H, W).permute(0, 2, 3, 1)
         centerness = centerness.reshape(N, -1).sigmoid()
 
@@ -87,16 +87,11 @@ class FCOSPostProcessor(torch.nn.Module):
                 per_box_regression = per_box_regression[top_k_indices]
                 per_locations = per_locations[top_k_indices]
             
-            if object_sizes_of_interest is not None:
-                per_box_regression[:, 4:] = per_box_regression[:, 4:]*object_sizes_of_interest
-
             detections = torch.stack([
                 per_locations[:, 0] - per_box_regression[:, 0],
                 per_locations[:, 1] - per_box_regression[:, 1],
                 per_locations[:, 0] + per_box_regression[:, 2],
                 per_locations[:, 1] + per_box_regression[:, 3],
-                per_box_regression[:, 4],
-                per_box_regression[:, 5]
             ], dim=1)
 
             h, w = image_sizes[i]
@@ -121,12 +116,10 @@ class FCOSPostProcessor(torch.nn.Module):
                 applying box decoding and NMS
         """
         sampled_boxes = []
-        object_sizes_of_interest = torch.tensor([64,128,256,512,800]).to(torch.float32)*1.5
-
-        for n, (l, o, b, c) in enumerate(zip(locations, box_cls, box_regression, centerness)):
+        for _, (l, o, b, c) in enumerate(zip(locations, box_cls, box_regression, centerness)):
             sampled_boxes.append(
                 self.forward_for_single_feature_map(
-                    l, o, b, c, image_sizes, object_sizes_of_interest[n]
+                    l, o, b, c, image_sizes
                 )
             )
 
@@ -154,7 +147,7 @@ class FCOSPostProcessor(torch.nn.Module):
                 inds = (labels == j).nonzero().view(-1)
 
                 scores_j = scores[inds]
-                boxes_j = boxes[inds, :].view(-1, 6)
+                boxes_j = boxes[inds, :].view(-1, 4)
                 boxlist_for_class = BoxList(boxes_j, boxlist.size, mode="xyxy")
                 boxlist_for_class.add_field("scores", scores_j)
                 boxlist_for_class = boxlist_nms(
