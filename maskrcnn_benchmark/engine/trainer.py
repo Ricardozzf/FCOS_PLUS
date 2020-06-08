@@ -187,17 +187,17 @@ def do_train(
             )
             if dist.get_rank() == 0:
                 writer.add_scalars("Class loss/loss_cls", {"train":meters.meters['loss_cls'].avg,
-                                                                "val":meters_val.meters['loss_cls'].avg}, iteration)
+                                                                "val":meters_val.meters['loss_cls'].global_avg}, iteration)
                 writer.add_scalars("Class loss/loss_cls_f", {"train":meters.meters['loss_cls_f'].avg,
-                                                                "val":meters_val.meters['loss_cls_f'].avg}, iteration)
+                                                                "val":meters_val.meters['loss_cls_f'].global_avg}, iteration)
                 writer.add_scalars("Reg loss/loss_reg", {"train":meters.meters['loss_reg'].avg,
-                                                                "val":meters_val.meters["loss_reg"].avg}, iteration)
+                                                                "val":meters_val.meters["loss_reg"].global_avg}, iteration)
                 writer.add_scalars("Reg loss/loss_box_reg_f", {"train":meters.meters['loss_box_reg_f'].avg,
-                                                                "val":meters_val.meters['loss_box_reg_f'].avg}, iteration)
+                                                                "val":meters_val.meters['loss_box_reg_f'].global_avg}, iteration)
                 writer.add_scalars("Loss/centerness", {"train":meters.meters['loss_centerness'].avg,
-                                                                "val":meters_val.meters["loss_centerness"].avg}, iteration)
+                                                                "val":meters_val.meters["loss_centerness"].global_avg}, iteration)
                 writer.add_scalars("Loss/loss", {"train":meters.meters['loss'].avg,
-                                                                "val":meters_val.meters['loss'].avg}, iteration)
+                                                                "val":meters_val.meters['loss'].global_avg}, iteration)
 
 
         if iteration == max_iter:
