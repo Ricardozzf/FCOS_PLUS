@@ -54,7 +54,7 @@ def do_train(
     test_period,
     arguments,
 ):
-    writer = SummaryWriter("log/fuseFPN")
+    writer = SummaryWriter(os.path.join("log",cfg.OUTPUT_DIR))
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
