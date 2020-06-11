@@ -51,9 +51,16 @@ def sigmoid_focal_loss_cpu(logits, targets, gamma, alpha, hm):
     p = torch.sigmoid(logits)
     term1 = (1 - p) ** gamma * torch.log(p)
     term2 = p ** gamma * torch.log(1 - p)
+    
     if hm is not None:
         term2 = term2 * torch.pow(1 - hm, 4)
-    return -(t == class_range).float() * term1 * alpha - ((t != class_range) * (t >= 0)).float() * term2 * (1 - alpha)
+
+    pos_loss = (-(t == class_range).float() * term1 * alpha).sum()
+    neg_loss = (- ((t != class_range) * (t >= 0)).float() * term2 * (1 - alpha)).sum()
+    if neg_loss > pos_loss*3:
+        conf = neg_loss.item() / (pos_loss.item()*3)
+        neg_loss = neg_loss / conf
+    return pos_loss + neg_loss
 
 
 class SigmoidFocalLoss(nn.Module):
@@ -70,7 +77,7 @@ class SigmoidFocalLoss(nn.Module):
         #else:
         loss_func = sigmoid_focal_loss_cpu
         loss = loss_func(logits, targets, self.gamma, self.alpha, hm)
-        return loss.sum()
+        return loss
 
     def __repr__(self):
         tmpstr = self.__class__.__name__ + "("

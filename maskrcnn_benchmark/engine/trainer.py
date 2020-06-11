@@ -111,7 +111,7 @@ def do_train(
                     memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
                 )
             )
-               
+
             if dist.get_rank() == 0:
                 writer.add_scalar("Class loss/loss_cls", meters.meters['loss_cls'].avg, iteration)
                 writer.add_scalar("Class loss/loss_cls_f", meters.meters['loss_cls_f'].avg, iteration)
