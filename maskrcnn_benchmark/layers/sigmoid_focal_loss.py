@@ -53,6 +53,7 @@ def sigmoid_focal_loss_cpu(logits, targets, gamma, alpha, hm):
     term2 = p ** gamma * torch.log(1 - p)
     
     if hm is not None:
+        num_pos = hm.eq(1).nonzero().shape[0]
         term2 = term2 * torch.pow(1 - hm, 4)
 
     pos_loss = (-(t == class_range).float() * term1 * alpha).sum()
