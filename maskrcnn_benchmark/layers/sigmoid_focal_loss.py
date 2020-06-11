@@ -8,7 +8,9 @@ from maskrcnn_benchmark import _C
 # TODO: Use JIT to replace CUDA implementation in the future.
 class _SigmoidFocalLoss(Function):
     @staticmethod
-    def forward(ctx, logits, targets, gamma, alpha):
+    def forward(ctx, logits, targets, gamma, alpha, hm):
+        if hm is not None:
+            raise ValueError("sigmoid focal loss dont support hm!")
         ctx.save_for_backward(logits, targets)
         num_classes = logits.shape[1]
         ctx.num_classes = num_classes
@@ -37,10 +39,10 @@ class _SigmoidFocalLoss(Function):
 sigmoid_focal_loss_cuda = _SigmoidFocalLoss.apply
 
 
-def sigmoid_focal_loss_cpu(logits, targets, gamma, alpha):
+def sigmoid_focal_loss_cpu(logits, targets, gamma, alpha, hm):
     num_classes = logits.shape[1]
-    gamma = gamma[0]
-    alpha = alpha[0]
+    gamma = gamma
+    alpha = alpha
     dtype = targets.dtype
     device = targets.device
     class_range = torch.arange(1, num_classes+1, dtype=dtype, device=device).unsqueeze(0)
@@ -49,6 +51,8 @@ def sigmoid_focal_loss_cpu(logits, targets, gamma, alpha):
     p = torch.sigmoid(logits)
     term1 = (1 - p) ** gamma * torch.log(p)
     term2 = p ** gamma * torch.log(1 - p)
+    if hm is not None:
+        term2 = term2 * torch.pow(1 - hm, 4)
     return -(t == class_range).float() * term1 * alpha - ((t != class_range) * (t >= 0)).float() * term2 * (1 - alpha)
 
 
@@ -60,14 +64,12 @@ class SigmoidFocalLoss(nn.Module):
 
     def forward(self, logits, targets, hm=None):
         device = logits.device
-        if logits.is_cuda:
-            loss_func = sigmoid_focal_loss_cuda
-        else:
-            loss_func = sigmoid_focal_loss_cpu
 
-        loss = loss_func(logits, targets, self.gamma, self.alpha)
-        if hm is not None:
-            loss = loss * hm
+        #if logits.is_cuda:
+        #    loss_func = sigmoid_focal_loss_cuda
+        #else:
+        loss_func = sigmoid_focal_loss_cpu
+        loss = loss_func(logits, targets, self.gamma, self.alpha, hm)
         return loss.sum()
 
     def __repr__(self):

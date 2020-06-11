@@ -11,10 +11,7 @@ from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 
 from torch.utils.tensorboard import SummaryWriter
 import os
-from tqdm import tqdm
-from maskrcnn_benchmark.data import make_data_loader
-from maskrcnn_benchmark.utils.comm import get_world_size, synchronize
-from maskrcnn_benchmark.engine.inference import inference
+
 
 def reduce_loss_dict(loss_dict):
     """
@@ -42,19 +39,16 @@ def reduce_loss_dict(loss_dict):
 
 
 def do_train(
-    cfg,
     model,
     data_loader,
-    data_loader_val,
     optimizer,
     scheduler,
     checkpointer,
     device,
     checkpoint_period,
-    test_period,
     arguments,
 ):
-    writer = SummaryWriter(os.path.join("log",cfg.OUTPUT_DIR))
+    writer = SummaryWriter("log")
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
@@ -63,14 +57,6 @@ def do_train(
     model.train()
     start_training_time = time.time()
     end = time.time()
-
-    iou_types = ("bbox",)
-    if cfg.MODEL.MASK_ON:
-        iou_types = iou_types + ("segm",)
-    if cfg.MODEL.KEYPOINT_ON:
-        iou_types = iou_types + ("keypoints",)
-    dataset_names = cfg.DATASETS.TEST
-
     pytorch_1_1_0_or_later = is_pytorch_1_1_0_or_later()
     for iteration, (images, targets, _) in enumerate(data_loader, start_iter):
         data_time = time.time() - end
@@ -107,7 +93,7 @@ def do_train(
         eta_seconds = meters.time.global_avg * (max_iter - iteration)
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
-        if iteration % 20 == 0 or iteration == max_iter:
+        if iteration % 1 == 0 or iteration == max_iter:
             logger.info(
                 meters.delimiter.join(
                     [
@@ -125,7 +111,7 @@ def do_train(
                     memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
                 )
             )
-            '''
+            '''      
             if dist.get_rank() == 0:
                 writer.add_scalar("Class loss/loss_cls", meters.meters['loss_cls'].avg, iteration)
                 writer.add_scalar("Class loss/loss_cls_f", meters.meters['loss_cls_f'].avg, iteration)
@@ -134,72 +120,9 @@ def do_train(
                 writer.add_scalar("Loss/centerness", meters.meters['loss_centerness'].avg, iteration)
                 writer.add_scalar("Loss/loss", meters.meters['loss'].avg, iteration)
             '''
-
+            
         if iteration % checkpoint_period == 0:
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
-
-        if data_loader_val is not None and test_period > 0 and iteration % test_period == 0:
-            meters_val = MetricLogger(delimiter="  ")
-            synchronize()
-            _ = inference(  # The result can be used for additional logging, e. g. for TensorBoard
-                model,
-                # The method changes the segmentation mask format in a data loader,
-                # so every time a new data loader is created:
-                make_data_loader(cfg, is_train=False, is_distributed=(get_world_size() > 1), is_for_period=True),
-                dataset_name="[Validation]",
-                iou_types=iou_types,
-                box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
-                device=cfg.MODEL.DEVICE,
-                expected_results=cfg.TEST.EXPECTED_RESULTS,
-                expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
-                output_folder=None,
-            )
-            synchronize()
-            model.train()
-            with torch.no_grad():
-                # Should be one image for each GPU:
-                for iteration_val, (images_val, targets_val, _) in enumerate(tqdm(data_loader_val)):
-                    images_val = images_val.to(device)
-                    targets_val = [target.to(device) for target in targets_val]
-                    loss_dict = model(images_val, targets_val)
-                    losses = sum(loss for loss in loss_dict.values())
-                    loss_dict_reduced = reduce_loss_dict(loss_dict)
-                    losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-                    meters_val.update(loss=losses_reduced, **loss_dict_reduced)
-            synchronize()
-            logger.info(
-                meters_val.delimiter.join(
-                    [
-                        "[Validation]: ",
-                        "eta: {eta}",
-                        "iter: {iter}",
-                        "{meters}",
-                        "lr: {lr:.6f}",
-                        "max mem: {memory:.0f}",
-                    ]
-                ).format(
-                    eta=eta_string,
-                    iter=iteration,
-                    meters=str(meters_val),
-                    lr=optimizer.param_groups[0]["lr"],
-                    memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
-                )
-            )
-            if dist.get_rank() == 0:
-                writer.add_scalars("Class loss/loss_cls", {"train":meters.meters['loss_cls'].avg,
-                                                                "val":meters_val.meters['loss_cls'].global_avg}, iteration)
-                writer.add_scalars("Class loss/loss_cls_f", {"train":meters.meters['loss_cls_f'].avg,
-                                                                "val":meters_val.meters['loss_cls_f'].global_avg}, iteration)
-                writer.add_scalars("Reg loss/loss_reg", {"train":meters.meters['loss_reg'].avg,
-                                                                "val":meters_val.meters["loss_reg"].global_avg}, iteration)
-                writer.add_scalars("Reg loss/loss_box_reg_f", {"train":meters.meters['loss_box_reg_f'].avg,
-                                                                "val":meters_val.meters['loss_box_reg_f'].global_avg}, iteration)
-                writer.add_scalars("Loss/centerness", {"train":meters.meters['loss_centerness'].avg,
-                                                                "val":meters_val.meters["loss_centerness"].global_avg}, iteration)
-                writer.add_scalars("Loss/loss", {"train":meters.meters['loss'].avg,
-                                                                "val":meters_val.meters['loss'].global_avg}, iteration)
-
-
         if iteration == max_iter:
             checkpointer.save("model_final", **arguments)
 

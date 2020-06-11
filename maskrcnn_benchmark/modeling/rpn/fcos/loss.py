@@ -76,7 +76,7 @@ class FCOSLossComputation(object):
         labels = []
         reg_targets = []
         xs, ys = locations[:, 0], locations[:, 1]
-        hm = np.ones((len(targets),1,h_f,w_f), dtype=np.float32) * 0.001
+        hm = np.zeros((len(targets),1,h_f,w_f), dtype=np.float32)
         for im_i in range(len(targets)):
             targets_per_im = targets[im_i]
             assert targets_per_im.mode == "xyxy"
@@ -93,6 +93,8 @@ class FCOSLossComputation(object):
 
             cx = (bboxes[:,0] + bboxes[:, 2]) * 0.5
             cy = (bboxes[:,1] + bboxes[:, 3]) * 0.5
+            c_w = bboxes[:,2] - bboxes[:,0]
+            c_h = bboxes[:,3] - bboxes[:,1]
             
             center_x = xs[:, None] - cx
             center_y = ys[:, None] - cy
@@ -115,19 +117,20 @@ class FCOSLossComputation(object):
             # support class num is n0
             cord_x = (is_in_boxes.nonzero()[:,0] % w_f).cpu().numpy()
             cord_y = (is_in_boxes.nonzero()[:,0] / w_f).cpu().numpy()
-            cord_w = 10
-            cord_h = 10
+            cord_w = c_w[is_in_boxes.nonzero()[:,1]].cpu().numpy()
+            cord_h = c_h[is_in_boxes.nonzero()[:,1]].cpu().numpy()
             cord_c = labels_per_im[is_in_boxes.nonzero()[:,0]]
             
             for i in range(1):
                 for n_cord in range(cord_x.shape[0]):
                     if cord_c[n_cord] == i+1:
-                        hm[im_i, i,:,:] = self.draw_umich_gaussian(hm[im_i, i,:,:], (cord_x[n_cord], cord_y[n_cord]), (cord_w, cord_h))
+                        hm[im_i, i,:,:] = self.draw_umich_gaussian(hm[im_i, i,:,:], (cord_x[n_cord], cord_y[n_cord]), (cord_w[n_cord], cord_h[n_cord]))
             '''
             im_hm = hm[im_i,i,:,:][...,None]
             import cv2
             cv2.imshow("res",im_hm)
             cv2.waitKey()
+            exit(0)
             import pdb; pdb.set_trace()
             '''
             labels.append(labels_per_im)
@@ -330,6 +333,7 @@ class FCOSLossComputation(object):
             box_cls_f,
             labels_f.int(), hm
         ) / (pos_inds_f.numel() + N)
+        
         #import pdb; pdb.set_trace()
         #print("reg_loss:{}".format(reg_loss))
         #print("reg_loss_f:{}".format(reg_loss_f))
