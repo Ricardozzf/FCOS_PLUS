@@ -99,6 +99,7 @@ class FCOSLossComputation(object):
             center_x = xs[:, None] - cx
             center_y = ys[:, None] - cy
             is_in_boxes = (center_x<=2) & (center_y<=2) & (center_x>-2) & (center_y>-2)
+            #is_in_boxes_reg = reg_targets_per_im.min(dim=2)[0] > 0
 
             if is_in_boxes.nonzero().shape[0] != cx.shape[0]:
                 import pdb; pdb.set_trace()
@@ -106,10 +107,15 @@ class FCOSLossComputation(object):
 
             locations_to_gt_area = area[None].repeat(len(locations), 1)
             locations_to_gt_area[is_in_boxes == 0] = INF
+            
+            #locations_to_gt_area_reg = locations_to_gt_area.clone().detach()
+            #locations_to_gt_area_reg[is_in_boxes_reg == 0] = INF
 
             # if there are still more than one objects for a location,
             # we choose the one with minimal area
             locations_to_min_area, locations_to_gt_inds = locations_to_gt_area.min(dim=1)
+            #locations_to_min_area_reg, locations_to_gt_inds_reg = locations_to_gt_area_reg.min(dim=1)
+
             reg_targets_per_im = reg_targets_per_im[range(len(locations)), locations_to_gt_inds]
             labels_per_im = labels_per_im[locations_to_gt_inds]
             labels_per_im[locations_to_min_area == INF] = 0
@@ -324,23 +330,25 @@ class FCOSLossComputation(object):
         else:
             reg_loss = box_regression_flatten.sum()
             centerness_loss = centerness_flatten.sum()
-        
-        reg_loss_f = self.box_reg_loss_func(
-            box_regression_f, reg_targets_f
-        )
-        
-        cls_loss_f = self.cls_loss_func(
-            box_cls_f,
-            labels_f.int(), hm
-        ) / (pos_inds_f.numel() + N)
+        #import pdb; pdb.set_trace()
+        if pos_inds_f.numel() > 0:
+            centerness_targets_f = self.compute_centerness_targets(reg_targets_f)
+            reg_loss_f = self.box_reg_loss_func(
+                box_regression_f, reg_targets_f, centerness_targets_f
+            )
+            
+            cls_loss_f = self.cls_loss_func(
+                box_cls_f,
+                labels_f.int(), hm
+            ) / (pos_inds_f.numel() + N)
         
         #import pdb; pdb.set_trace()
         #print("reg_loss:{}".format(reg_loss))
         #print("reg_loss_f:{}".format(reg_loss_f))
         #import pdb; pdb.set_trace()
 
-        cls_loss_f = cls_loss_f
-        reg_loss_f = reg_loss_f*0.1
+        cls_loss_f = cls_loss_f * 0.5
+        reg_loss_f = reg_loss_f
         return cls_loss, reg_loss, centerness_loss, reg_loss_f, cls_loss_f
 
     def gaussian_radius(self, det_size, min_overlap=0.7):

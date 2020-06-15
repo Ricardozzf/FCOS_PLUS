@@ -51,16 +51,17 @@ def sigmoid_focal_loss_cpu(logits, targets, gamma, alpha, hm):
     p = torch.sigmoid(logits)
     term1 = (1 - p) ** gamma * torch.log(p)
     term2 = p ** gamma * torch.log(1 - p)
-    
+
     if hm is not None:
-        num_pos = hm.eq(1).nonzero().shape[0]
         term2 = term2 * torch.pow(1 - hm, 4)
 
     pos_loss = (-(t == class_range).float() * term1 * alpha).sum()
     neg_loss = (- ((t != class_range) * (t >= 0)).float() * term2 * (1 - alpha)).sum()
-    if neg_loss > pos_loss*3:
-        conf = neg_loss.item() / (pos_loss.item()*3)
-        neg_loss = neg_loss / conf
+    #neg_num = (- ((t != class_range) * (t >= 0)).float() * term2 * (1 - alpha)).nonzero().shape[0]
+    #pos_num = (-(t == class_range).float() * term1 * alpha).nonzero().shape[0]
+    #import pdb; pdb.set_trace()
+    #if hm is not None:
+    #    neg_loss = neg_loss / neg_num * pos_num
     return pos_loss + neg_loss
 
 

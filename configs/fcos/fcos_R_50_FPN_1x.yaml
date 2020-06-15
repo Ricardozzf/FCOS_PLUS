@@ -11,7 +11,7 @@ MODEL:
     USE_C5: False # FCOS uses P5 instead of C5
   FCOS:
     CENTER_SAMPLE: True
-    POS_RADIUS: 1.0
+    POS_RADIUS: 1.5
     LOC_LOSS_TYPE: "giou"
     NUM_CLASSES: 2
 DATASETS:
