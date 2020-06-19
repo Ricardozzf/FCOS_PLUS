@@ -74,3 +74,27 @@ class SigmoidFocalLoss(nn.Module):
         tmpstr += ", alpha=" + str(self.alpha)
         tmpstr += ")"
         return tmpstr
+
+class ClassCAM(nn.Module):
+    def __init__(self):
+        super(ClassCAM, self).__init__()
+    
+    def forward(self, logits, targets, coord_xy=None,box_regression=None):
+        dtype = targets.dtype
+        device = targets.device
+        num_classes = logits.shape[1]
+        t = targets.unsqueeze(1)
+        p = torch.sigmoid(logits)
+        
+        class_range = torch.arange(1, num_classes+1, dtype=dtype, device=device).unsqueeze(0)
+        
+        loss = p[(t == class_range).nonzero()[:,0]].unsqueeze(2)
+        coord_x = coord_xy[0][0][(t == class_range).nonzero()[:,0]].unsqueeze(2)
+        coord_y = coord_xy[0][1][(t == class_range).nonzero()[:,0]].unsqueeze(2)
+        box = box_regression[(t == class_range).nonzero()[:,0]].unsqueeze(1)
+        
+        #loss =  (t == class_range).float() * p
+        loss = torch.cat([loss, coord_x, coord_y, box], dim=2)
+        
+        return loss
+       

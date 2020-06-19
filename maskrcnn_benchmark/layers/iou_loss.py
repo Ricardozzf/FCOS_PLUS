@@ -33,6 +33,7 @@ class IOULoss(nn.Module):
         area_union = target_area + pred_area - area_intersect
         ious = (area_intersect + 1.0) / (area_union + 1.0)
         gious = ious - (ac_uion - area_union) / ac_uion
+
         if self.loc_loss_type == 'iou':
             losses = -torch.log(ious)
         elif self.loc_loss_type == 'linear_iou':
@@ -43,7 +44,7 @@ class IOULoss(nn.Module):
             raise NotImplementedError
 
         if weight is not None and weight.sum() > 0:
-            return (losses * weight).sum() / weight.sum()
+            return (losses * weight).sum() / weight.sum(), losses
         else:
             assert losses.numel() != 0
             return losses.mean()

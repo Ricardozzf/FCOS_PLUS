@@ -15,10 +15,11 @@ from .smooth_l1_loss import smooth_l1_loss
 from .sigmoid_focal_loss import SigmoidFocalLoss
 from .iou_loss import IOULoss
 from .scale import Scale
+from .sigmoid_focal_loss import ClassCAM
 
 
 __all__ = ["nms", "roi_align", "ROIAlign", "roi_pool", "ROIPool",
            "smooth_l1_loss", "Conv2d", "ConvTranspose2d", "interpolate",
-           "BatchNorm2d", "FrozenBatchNorm2d", "SigmoidFocalLoss", "IOULoss",
+           "BatchNorm2d", "FrozenBatchNorm2d", "SigmoidFocalLoss", "ClassCAM","IOULoss",
            "Scale"]
 
