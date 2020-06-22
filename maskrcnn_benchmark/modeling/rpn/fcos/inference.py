@@ -53,7 +53,7 @@ class FCOSPostProcessor(torch.nn.Module):
 
         # put in the same format as locations
         # maxpool for nms
-        import pdb; pdb.set_trace()
+        
         hmax = self.pool(box_cls)
         keep = (hmax == box_cls).float()
         box_cls = box_cls * keep
@@ -165,10 +165,10 @@ class FCOSPostProcessor(torch.nn.Module):
                 boxes_j = boxes[inds, :].view(-1, 4)
                 boxlist_for_class = BoxList(boxes_j, boxlist.size, mode="xyxy")
                 boxlist_for_class.add_field("scores", scores_j)
-                boxlist_for_class = boxlist_nms(
-                    boxlist_for_class, self.nms_thresh,
-                    score_field="scores"
-                )
+                #boxlist_for_class = boxlist_nms(
+                #    boxlist_for_class, self.nms_thresh,
+                #    score_field="scores"
+                #)
                 num_labels = len(boxlist_for_class)
                 boxlist_for_class.add_field(
                     "labels", torch.full((num_labels,), j,
