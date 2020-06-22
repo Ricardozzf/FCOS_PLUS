@@ -162,7 +162,7 @@ class FCOSModule(torch.nn.Module):
         else:
             return self._forward_test(
                 locations, box_cls, box_regression,
-                centerness, images.image_sizes
+                centerness, res_f, locations_f, images.image_sizes
             )
 
     def _forward_train(self, locations, box_cls, box_regression, centerness, targets, locations_f, res_f):
@@ -178,10 +178,10 @@ class FCOSModule(torch.nn.Module):
         }
         return None, losses
 
-    def _forward_test(self, locations, box_cls, box_regression, centerness, image_sizes):
+    def _forward_test(self, locations, box_cls, box_regression, centerness, res_f, locations_f, image_sizes):
         boxes = self.box_selector_test(
             locations, box_cls, box_regression,
-            centerness, image_sizes
+            centerness, res_f, locations_f, image_sizes
         )
         return boxes, {}
 

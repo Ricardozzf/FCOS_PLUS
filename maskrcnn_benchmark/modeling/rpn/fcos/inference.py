@@ -37,6 +37,8 @@ class FCOSPostProcessor(torch.nn.Module):
         self.num_classes = num_classes
         self.dense_points = dense_points
 
+        self.pool = torch.nn.MaxPool2d(3, 1, 1)
+
     def forward_for_single_feature_map(
             self, locations, box_cls,
             box_regression, centerness,
@@ -50,19 +52,27 @@ class FCOSPostProcessor(torch.nn.Module):
         N, C, H, W = box_cls.shape
 
         # put in the same format as locations
+        # maxpool for nms
+        import pdb; pdb.set_trace()
+        hmax = self.pool(box_cls)
+        keep = (hmax == box_cls).float()
+        box_cls = box_cls * keep
+
         box_cls = box_cls.view(N, C, H, W).permute(0, 2, 3, 1)
         box_cls = box_cls.reshape(N, -1, self.num_classes - 1).sigmoid()
         box_regression = box_regression.view(N, self.dense_points * 4, H, W).permute(0, 2, 3, 1)
         box_regression = box_regression.reshape(N, -1, 4)
-        centerness = centerness.view(N, self.dense_points, H, W).permute(0, 2, 3, 1)
-        centerness = centerness.reshape(N, -1).sigmoid()
+        if centerness is not None:
+            centerness = centerness.view(N, self.dense_points, H, W).permute(0, 2, 3, 1)
+            centerness = centerness.reshape(N, -1).sigmoid()
 
         candidate_inds = box_cls > self.pre_nms_thresh
         pre_nms_top_n = candidate_inds.view(N, -1).sum(1)
         pre_nms_top_n = pre_nms_top_n.clamp(max=self.pre_nms_top_n)
 
         # multiply the classification scores with centerness scores
-        box_cls = box_cls * centerness[:, :, None]
+        if centerness is not None:
+            box_cls = box_cls * centerness[:, :, None]
 
         results = []
         for i in range(N):
@@ -104,7 +114,7 @@ class FCOSPostProcessor(torch.nn.Module):
 
         return results
 
-    def forward(self, locations, box_cls, box_regression, centerness, image_sizes):
+    def forward(self, locations, box_cls, box_regression, centerness, res_f, locations_f, image_sizes):
         """
         Arguments:
             anchors: list[list[BoxList]]
@@ -116,12 +126,17 @@ class FCOSPostProcessor(torch.nn.Module):
                 applying box decoding and NMS
         """
         sampled_boxes = []
-        for _, (l, o, b, c) in enumerate(zip(locations, box_cls, box_regression, centerness)):
-            sampled_boxes.append(
-                self.forward_for_single_feature_map(
-                    l, o, b, c, image_sizes
+        #for _, (l, o, b, c) in enumerate(zip(locations, box_cls, box_regression, centerness)):
+        #    sampled_boxes.append(
+        #        self.forward_for_single_feature_map(
+        #            l, o, b, c, image_sizes
+        #        )
+        #    )
+        sampled_boxes.append(
+            self.forward_for_single_feature_map(
+                    locations_f, res_f[0],  res_f[1], None, image_sizes
                 )
-            )
+        )
 
         boxlists = list(zip(*sampled_boxes))
         boxlists = [cat_boxlist(boxlist) for boxlist in boxlists]
