@@ -112,6 +112,14 @@ class DatasetCatalog(object):
             "img_dir": "CrowdCoco/val",
             "ann_file": "CrowdCoco/annotations/val.json"
         },
+        "head_offset_train": {
+            "img_dir": "cocoHeadoffset/train",
+            "ann_file": "cocoHeadoffset/annotations/train_head_offset_bbox.json"
+        },
+        "head_offset_val": {
+            "img_dir": "cocoHeadoffset/val",
+            "ann_file": "cocoHeadoffset/annotations/val_head_offset_bbox.json"
+        },
     }
 
     @staticmethod
