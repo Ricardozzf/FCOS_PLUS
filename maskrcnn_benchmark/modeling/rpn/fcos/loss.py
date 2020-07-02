@@ -308,7 +308,8 @@ class FCOSLossComputation(object):
             box_cls_flatten,
             labels_flatten.int()
         ) / (pos_inds.numel() + N)  # add N to avoid dividing by a zero
-        
+        if np.isnan(cls_loss.item()):
+            cls_loss = cls_loss.new([0]).squeeze()
         box_regression_flatten = box_regression_flatten[pos_inds]
         reg_targets_flatten = reg_targets_flatten[pos_inds]
         centerness_flatten = centerness_flatten[pos_inds]
@@ -341,13 +342,16 @@ class FCOSLossComputation(object):
                 box_cls_f,
                 labels_f.int(), hm
             ) / (pos_inds_f.numel() + N)
-        
+        else:
+            reg_loss_f = box_regression_f.sum()
+            cls_loss_f = cls_loss.new([0]).squeeze()
+		    
         #import pdb; pdb.set_trace()
         #print("reg_loss:{}".format(reg_loss))
         #print("reg_loss_f:{}".format(reg_loss_f))
         #import pdb; pdb.set_trace()
 
-        cls_loss_f = cls_loss_f * 0.5
+        cls_loss_f = cls_loss_f
         reg_loss_f = reg_loss_f
         return cls_loss, reg_loss, centerness_loss, reg_loss_f, cls_loss_f
 

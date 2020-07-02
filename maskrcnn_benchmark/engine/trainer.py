@@ -95,7 +95,7 @@ def do_train(
         eta_seconds = meters.time.global_avg * (max_iter - iteration)
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
-        if iteration % 20 == 0 or iteration == max_iter:
+        if iteration % 1 == 0 or iteration == max_iter:
             logger.info(
                 meters.delimiter.join(
                     [
@@ -113,7 +113,7 @@ def do_train(
                     memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
                 )
             )
-
+            '''
             if dist.get_rank() == 0:
                 writer.add_scalar("Class loss/loss_cls", meters.meters['loss_cls'].avg, iteration)
                 writer.add_scalar("Class loss/loss_cls_f", meters.meters['loss_cls_f'].avg, iteration)
@@ -121,7 +121,7 @@ def do_train(
                 writer.add_scalar("Reg loss/loss_box_reg_f", meters.meters['loss_box_reg_f'].avg, iteration)
                 writer.add_scalar("Loss/centerness", meters.meters['loss_centerness'].avg, iteration)
                 writer.add_scalar("Loss/loss", meters.meters['loss'].avg, iteration)
-            
+            '''
             
         if iteration % checkpoint_period == 0:
             checkpointer.save("model_{:07d}".format(iteration), **arguments)

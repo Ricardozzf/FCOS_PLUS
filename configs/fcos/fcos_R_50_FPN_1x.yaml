@@ -1,6 +1,6 @@
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
-  WEIGHT: "pretrain_models/test.pt"
+  WEIGHT: "fuseFPN2/model_final.pth"
   RPN_ONLY: True
   FCOS_ON: True
   BACKBONE:
