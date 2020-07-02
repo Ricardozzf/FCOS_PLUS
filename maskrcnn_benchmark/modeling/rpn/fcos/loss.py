@@ -70,8 +70,6 @@ class FCOSLossComputation(object):
         center_bbox = torch.stack((left, top, right, bottom), -1)
         inside_gt_bbox_mask = center_bbox.min(-1)[0] > 0
         return inside_gt_bbox_mask
-
-    def prepare_targets_f(self, points, targets):
         
 
     def prepare_targets(self, points, targets):
