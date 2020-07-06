@@ -13,9 +13,10 @@ MODEL:
     CENTER_SAMPLE: True
     POS_RADIUS: 1.5
     LOC_LOSS_TYPE: "giou"
+    NUM_CLASSES: 2
 DATASETS:
-  TRAIN: ("coco_2017_train", )
-  TEST: ("coco_2017_val", )
+  TRAIN: ("head_offset_coco_train", )
+  TEST: ("head_offset_coco_val", )
 INPUT:
   MIN_SIZE_TRAIN: (800,)
   MAX_SIZE_TRAIN: 1333
@@ -23,6 +24,7 @@ INPUT:
   MAX_SIZE_TEST: 1333
 DATALOADER:
   SIZE_DIVISIBILITY: 32
+  NUM_WORKERS: 0
 SOLVER:
   BASE_LR: 0.01
   WEIGHT_DECAY: 0.0001
@@ -30,3 +32,4 @@ SOLVER:
   MAX_ITER: 90000
   IMS_PER_BATCH: 16
   WARMUP_METHOD: "constant"
+OUTPUT_DIR: "head_off"
