@@ -23,7 +23,14 @@ def compute_on_dataset(model, data_loader, device, timer=None):
     iouv = torch.linspace(0.5, 0.95, 10)
     niou = iouv.numel()
 
-    for debug_num, batch in enumerate(tqdm(data_loader, desc=s)):
+    rank0 = is_main_process()
+
+    if rank0:
+        pbar = tqdm(data_loader, desc=s, total=len(data_loader))
+    else:
+        pbar = data_loader
+
+    for debug_num, batch in enumerate(pbar):
         images, targets, image_ids = batch
         
         images = images.to(device)
@@ -145,9 +152,10 @@ def inference(
     )
     '''
     predictions = _accumulate_predictions_from_multiple_gpus(predictions)
-    predictions = [i for p in predictions for i in p]
     if not is_main_process():
-        return
+        return None
+
+    predictions = [i for p in predictions for i in p]
     
     stats = [torch.cat(x,0) for x in zip(*predictions)]
     if len(stats):
@@ -157,7 +165,7 @@ def inference(
         nt = np.bincount(stats[3].numpy().astype(np.int64), minlength=80)
     else:
         nt = torch.zeros(1)
-    import pdb; pdb.set_trace()
+    
     pf = '%20s' + '%12.3g' * 6  # print format
     print(pf % ('all', len(dataset), nt.sum(), mp, mr, map50, map))
 

@@ -52,8 +52,10 @@ def do_train(
     checkpoint_period,
     arguments,
 ):
+    import pdb; pdb.set_trace()
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info("Start training")
+    
     meters = MetricLogger(delimiter="  ")
     start_epoch = arguments["epoch"]
     epochs = arguments["epochs"]
