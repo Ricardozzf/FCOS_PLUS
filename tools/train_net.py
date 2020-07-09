@@ -169,7 +169,7 @@ def main():
     output_dir = cfg.OUTPUT_DIR
     if output_dir:
         mkdir(output_dir)
-
+    '''
     logger = setup_logger("maskrcnn_benchmark", output_dir, get_rank())
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)
@@ -182,12 +182,13 @@ def main():
         config_str = "\n" + cf.read()
         logger.info(config_str)
     logger.info("Running with config:\n{}".format(cfg))
+    '''
 
     model = train(cfg, args.local_rank, args.distributed)
-
+    '''
     if not args.skip_test:
         run_test(cfg, model, args.distributed)
-
+    '''
 
 if __name__ == "__main__":
     main()
