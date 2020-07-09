@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 import torchvision
 import yaml
-from scipy.signal import butter, filtfilt
 from tqdm import tqdm
 import numpy as np
 
@@ -36,7 +35,6 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=None):
     #cv2.imshow("d",img/255)
     #key = cv2.waitKey(0)
     #if key == 27:
-    
     #    exit(0)
     if label:
         tf = max(tl - 1, 1)  # font thickness
