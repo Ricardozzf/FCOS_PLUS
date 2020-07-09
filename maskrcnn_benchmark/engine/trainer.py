@@ -13,6 +13,7 @@ from .tb_utils import plot_images, restore_im_meanstd
 from tqdm import tqdm
 from .inference import inference
 import os
+from maskrcnn_benchmark.utils.comm import get_rank
 
 
 def reduce_loss_dict(loss_dict):
@@ -57,7 +58,7 @@ def do_train(
     start_epoch = arguments["epoch"]
     epochs = arguments["epochs"]
     model.train()
-
+    rank = get_rank()
     #start_training_time = time.time()
     #end = time.time()
 
@@ -66,17 +67,19 @@ def do_train(
     for epoch in range(start_epoch,epochs):
 
         model.train()
-        print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'loss', 'cls', 'reg', 'center', 'targets', 'img_size'))
-        pbar = tqdm(enumerate(data_loader), total=len(data_loader))
+        if rank == 0:
+            pbar = tqdm(enumerate(data_loader), total=len(data_loader))
+            print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'loss', 'cls', 'reg', 'center', 'targets', 'img_size'))
+        else:
+            pbar = enumerate(data_loader)
         start_debug = 0
-        #import pdb; pdb.set_trace()
         
         for iteration, (images, targets, _) in pbar:
             #data_time = time.time() - end
             iteration = iteration + 1
             arguments["iteration"] = iteration
             
-            if iteration < 10 and tb_writer:
+            if iteration < 10 and tb_writer and rank == 0:
                 img = images.tensors.clone()
                 img = restore_im_meanstd(img)
                 
@@ -108,40 +111,40 @@ def do_train(
             meters.update(time=batch_time, data=data_time)
             '''
             
-            mloss = [meters.meters['loss'].avg, meters.meters['loss_cls'].avg, \
-                meters.meters['loss_reg'].avg, meters.meters['loss_centerness'].avg]
-            # Print
             
-            mem = '%.3gG' % (torch.cuda.memory_cached() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-            s = ('%10s' * 2 + '%10.4g' * 6) % ('%g/%g' % (epoch, epochs - 1), mem, 
-                *mloss, sum([len(x) for x in targets]), min([min(x) for x in images.image_sizes]))
-            pbar.set_description(s)
+            # Print
+            if rank == 0:
+                mloss = [meters.meters['loss'].avg, meters.meters['loss_cls'].avg, \
+                    meters.meters['loss_reg'].avg, meters.meters['loss_centerness'].avg]
+                mem = '%.3gG' % (torch.cuda.memory_cached() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
+                s = ('%10s' * 2 + '%10.4g' * 6) % ('%g/%g' % (epoch, epochs - 1), mem, 
+                    *mloss, sum([len(x) for x in targets]), min([min(x) for x in images.image_sizes]))
+                pbar.set_description(s)
 
             if start_debug > 10:
                 break
             start_debug += 1
 
-        if tb_writer:
+        checkpointer.save("model_last", **arguments)
+
+        if tb_writer and rank == 0:
             tag_train = ['train/loss', 'train/loss_cls', 'train/loss_reg', 'train/loss_centerness']
             for tag in [os.path.split(x)[1] for x in tag_train]:
                 tb_writer.add_scalar('train/'+ tag, meters.meters[tag].avg, epoch)
             
-            
-
-        results, maps = inference(model, data_loader_val, "val")
-
-        if  tb_writer:
-            tags = ['metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/F1']
-            for tag, x in zip(tags, results):
-                tb_writer.add_scalar(tag, x, epoch)
-                
-        checkpointer.save("model_last", **arguments)
-        if results[2] > best_map:
-                checkpointer.save("model_{}".format("best"), **arguments)
-                best_map = results[2]
+        infer_res = inference(model, data_loader_val, "val")
+        
+        if rank == 0:
+            results, maps = infer_res
+            if results[2] > best_map:
+                    checkpointer.save("model_{}".format("best"), **arguments)
+                    best_map = results[2]
+            if  tb_writer and rank == 0:
+                tags = ['metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/F1']
+                for tag, x in zip(tags, results):
+                    tb_writer.add_scalar(tag, x, epoch)
         
         scheduler.step()
-        start_iter = 0
 
         '''
         total_training_time = time.time() - start_training_time
