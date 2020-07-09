@@ -131,13 +131,15 @@ class FCOSLossComputation(object):
             repeatX = l.shape[0]
             repeatY = t.shape[0]
             
+            # fix 6
+            '''
             scales = torch.where(object_sizes_of_interest[:,1]==INF, \
                 object_sizes_of_interest.new_tensor(800).expand(object_sizes_of_interest.shape[0]), \
                     object_sizes_of_interest[:,1])
             scales *= 1.5
             vw = (bboxes[:, 4][None].repeat(repeatX, 1) / scales[:,None]).unsqueeze(2)
             vh = (bboxes[:, 5][None].repeat(repeatY, 1) / scales[:,None]).unsqueeze(2)
-            
+            '''
             reg_targets_per_im = torch.stack([l, t, r, b], dim=2)
             if self.center_sample:
                 is_in_boxes = self.get_sample_region(
@@ -163,7 +165,7 @@ class FCOSLossComputation(object):
             # if there are still more than one objects for a location,
             # we choose the one with minimal area
             locations_to_min_area, locations_to_gt_inds = locations_to_gt_area.min(dim=1)
-            reg_targets_per_im = torch.cat([reg_targets_per_im, vw, vh], dim=2)
+            #reg_targets_per_im = torch.cat([reg_targets_per_im, vw, vh], dim=2) # fix 6
             reg_targets_per_im = reg_targets_per_im[range(len(locations)), locations_to_gt_inds]
             labels_per_im = labels_per_im[locations_to_gt_inds]
             labels_per_im[locations_to_min_area == INF] = 0
@@ -197,7 +199,7 @@ class FCOSLossComputation(object):
         N = box_cls[0].size(0)
         num_classes = box_cls[0].size(1) // self.dense_points
         labels, reg_targets = self.prepare_targets(locations, targets)
-        labels_f, reg_targets_f  = self.prepare_targets_f(locations_f, targets)
+        #labels_f, reg_targets_f  = self.prepare_targets_f(locations_f, targets)
 
         box_cls_flatten = []
         box_regression_flatten = []
@@ -206,9 +208,9 @@ class FCOSLossComputation(object):
         reg_targets_flatten = []
         for l in range(len(labels)):
             box_cls_flatten.append(box_cls[l].permute(0, 2, 3, 1).reshape(-1, num_classes))
-            box_regression_flatten.append(box_regression[l].permute(0, 2, 3, 1).reshape(-1, 6))
+            box_regression_flatten.append(box_regression[l].permute(0, 2, 3, 1).reshape(-1, 4)) # fix 6
             labels_flatten.append(labels[l].reshape(-1))
-            reg_targets_flatten.append(reg_targets[l].reshape(-1, 6))
+            reg_targets_flatten.append(reg_targets[l].reshape(-1, 4)) # fix 6
             centerness_flatten.append(centerness[l].permute(0, 2, 3, 1).reshape(-1))
         
         box_cls_flatten = torch.cat(box_cls_flatten, dim=0)

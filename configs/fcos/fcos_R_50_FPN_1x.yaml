@@ -1,6 +1,6 @@
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
-  WEIGHT: "fcos_fwh/model_final.pth"
+  WEIGHT: "fcos_fwh/model.pt"
   RPN_ONLY: True
   FCOS_ON: True
   BACKBONE:
@@ -13,15 +13,15 @@ MODEL:
     CENTER_SAMPLE: False
     NUM_CLASSES: 2
 DATASETS:
-  TRAIN: ("Crowdhuman_coco_train", )
-  TEST: ("Crowdhuman_coco_val", )
+  TRAIN: ("head_offset_coco_train", )
+  TEST: ("head_offset_coco_val", )
 INPUT:
   MIN_SIZE_TRAIN: (800,)
   MAX_SIZE_TRAIN: 1333
   MIN_SIZE_TEST: 800
   MAX_SIZE_TEST: 1333
 DATALOADER:
-  SIZE_DIVISIBILITY: 128
+  SIZE_DIVISIBILITY: 32
 SOLVER:
   BASE_LR: 0.01
   WEIGHT_DECAY: 0.0001
@@ -29,4 +29,4 @@ SOLVER:
   MAX_ITER: 90000
   IMS_PER_BATCH: 2
   WARMUP_METHOD: "constant"
-OUTPUT_DIR: "./fcos_fwh_t"
+OUTPUT_DIR: "./fcos_fwh"

@@ -7,7 +7,7 @@ class IOULoss(nn.Module):
         super(IOULoss, self).__init__()
         self.loc_loss_type = loc_loss_type
 
-    def forward(self, pred, target, weight=None):
+    def forward(self, pred, target, weight=None, a=1):
         pred_left = pred[:, 0]
         pred_top = pred[:, 1]
         pred_right = pred[:, 2]
@@ -33,33 +33,29 @@ class IOULoss(nn.Module):
         area_union = target_area + pred_area - area_intersect
         ious = (area_intersect + 1.0) / (area_union + 1.0)
         gious = ious - (ac_uion - area_union) / ac_uion
+
+        iou_wh = 1
+        giou_wh = 1
+        if pred.shape[1] !=4:
+            pred_w, pred_h = pred[:,4], pred[:,5]
+            target_w, target_h = target[:,4], target[:,5]
+            insert_wh = torch.min(pred_w, target_w) * torch.min(pred_h, target_h)
+            bb_wh = torch.max(pred_w, target_w) * torch.max(pred_h, target_h)
+            union_wh = target_w * target_h + pred_w * pred_h - insert_wh
+            iou_wh = insert_wh / union_wh
+            giou_wh = iou_wh - (bb_wh - union_wh) / bb_wh
+        
         if self.loc_loss_type == 'iou':
-            losses = -torch.log(ious)
+            losses = -torch.log(ious) + -torch.log(iou_wh) * a
         elif self.loc_loss_type == 'linear_iou':
-            losses = 1 - ious
+            losses = 1 - ious + a*(1 - iou_wh)
         elif self.loc_loss_type == 'giou':
-            losses = 1 - gious
+            losses = 1 - gious + a*(1 - giou_wh)
         else:
             raise NotImplementedError
 
         if weight is not None and weight.sum() > 0:
-            losses =  (losses * weight).sum() / weight.sum()
+            return (losses * weight).sum() / weight.sum()
         else:
             assert losses.numel() != 0
-            losses =  losses.mean()
-        '''
-        beta = 1./9
-        pred_wh = pred[:,-2:]
-        target_wh = target[:,-2:]
-        n = torch.abs(pred_wh - target_wh)
-        cond = n < beta
-        loss_wh = torch.where(cond, 0.5*n**2 / beta, n - 0.5 * beta )
-        '''
-        pred_w, pred_h = pred[:,4], pred[:,5]
-        target_w, target_h = target[:,4], target[:,5]
-        insert_wh = torch.min(pred_w, target_w) * torch.min(pred_h, target_h)
-        bb_wh = torch.max(pred_w, target_w) * torch.max(pred_h, target_h)
-        iou_wh = insert_wh / bb_wh
-        loss_wh = -torch.log(iou_wh).mean()
-        
-        return losses + loss_wh*0.5
+            return losses.mean()

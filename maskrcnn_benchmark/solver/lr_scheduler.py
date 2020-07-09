@@ -34,19 +34,29 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
         self.warmup_factor = warmup_factor
         self.warmup_iters = warmup_iters
         self.warmup_method = warmup_method
+        self.iswarmup = False
         super(WarmupMultiStepLR, self).__init__(optimizer, last_epoch)
 
     def get_lr(self):
         warmup_factor = 1
+        '''
         if self.last_epoch < self.warmup_iters:
             if self.warmup_method == "constant":
                 warmup_factor = self.warmup_factor
             elif self.warmup_method == "linear":
                 alpha = float(self.last_epoch) / self.warmup_iters
                 warmup_factor = self.warmup_factor * (1 - alpha) + alpha
+        '''
+        if self.iswarmup:
+            if self.warmup_method == 'constant':
+                warmup_factor = self.warmup_factor
+            elif self.warmup_method == 'linear':
+                raise NotImplementedError("wraped warmup method!")
         return [
             base_lr
             * warmup_factor
             * self.gamma ** bisect_right(self.milestones, self.last_epoch)
             for base_lr in self.base_lrs
         ]
+    def set_warmup(self):
+        self.iswarmup = True

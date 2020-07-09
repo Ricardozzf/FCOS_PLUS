@@ -60,6 +60,7 @@ def do_coco_evaluation(
                 dataset.coco, coco_results[iou_type], file_path, iou_type
             )
             results.update(res)
+    import pdb; pdb.set_trace()
     logger.info(results)
     check_expected_results(results, expected_results, expected_results_sigma_tol)
     if output_folder:

@@ -154,6 +154,8 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
     datasets = build_dataset(dataset_list, transforms, DatasetCatalog, is_train)
 
     data_loaders = []
+    if num_iters is not None:
+        num_iters = None
     for dataset in datasets:
         sampler = make_data_sampler(dataset, shuffle, is_distributed)
         batch_sampler = make_batch_data_sampler(

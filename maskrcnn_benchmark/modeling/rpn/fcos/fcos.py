@@ -21,6 +21,7 @@ class FCOSHead(torch.nn.Module):
 
         cls_tower = []
         bbox_tower = []
+
         for i in range(cfg.MODEL.FCOS.NUM_CONVS):
             cls_tower.append(
                 nn.Conv2d(
@@ -44,6 +45,7 @@ class FCOSHead(torch.nn.Module):
             )
             bbox_tower.append(nn.GroupNorm(32, in_channels))
             bbox_tower.append(nn.ReLU())
+            
 
         self.add_module('cls_tower', nn.Sequential(*cls_tower))
         self.add_module('bbox_tower', nn.Sequential(*bbox_tower))
@@ -53,7 +55,7 @@ class FCOSHead(torch.nn.Module):
             padding=1
         )
         self.bbox_pred = nn.Conv2d(
-            in_channels, 6 * self.dense_points, kernel_size=3, stride=1,
+            in_channels, 4 * self.dense_points, kernel_size=3, stride=1,
             padding=1
         )
         self.centerness = nn.Conv2d(
@@ -155,12 +157,12 @@ class FCOSModule(torch.nn.Module):
         super(FCOSModule, self).__init__()
 
         head = FCOSHead(cfg, in_channels)
-        fuseFPN = FCOSFuseFPN(cfg, in_channels)
+        #fuseFPN = FCOSFuseFPN(cfg, in_channels)
         box_selector_test = make_fcos_postprocessor(cfg)
 
         loss_evaluator = make_fcos_loss_evaluator(cfg)
         self.head = head
-        self.fuseFPN = fuseFPN
+        #self.fuseFPN = fuseFPN
         self.box_selector_test = box_selector_test
         self.loss_evaluator = loss_evaluator
         self.fpn_strides = cfg.MODEL.FCOS.FPN_STRIDES
@@ -182,9 +184,9 @@ class FCOSModule(torch.nn.Module):
                 testing, it is an empty dict.
         """
         box_cls, box_regression, centerness = self.head(features)
-        box_cls_f, box_regression_f, centerness_f = self.fuseFPN((box_cls, box_regression, centerness))
+        #box_cls_f, box_regression_f, centerness_f = self.fuseFPN((box_cls, box_regression, centerness))
         locations = self.compute_locations(features)
-        locations_f = self.compute_locations_f(box_cls_f.shape[-2:], box_cls_f.device)
+        #locations_f = self.compute_locations_f(box_cls_f.shape[-2:], box_cls_f.device)
 
         if self.training:
             return self._forward_train(
