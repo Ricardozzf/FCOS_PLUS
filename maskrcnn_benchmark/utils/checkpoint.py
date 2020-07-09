@@ -45,7 +45,7 @@ class Checkpointer(object):
         data.update(kwargs)
 
         save_file = os.path.join(self.save_dir, "{}.pth".format(name))
-        self.logger.info("Saving checkpoint to {}".format(save_file))
+        #self.logger.info("Saving checkpoint to {}".format(save_file))
         torch.save(data, save_file)
         self.tag_last_checkpoint(save_file)
 

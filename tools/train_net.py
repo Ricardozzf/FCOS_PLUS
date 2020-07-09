@@ -10,7 +10,7 @@ from maskrcnn_benchmark.utils.env import setup_environment  # noqa F401 isort:sk
 import argparse
 import os
 
-import torch
+import torch, math
 from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.data import make_data_loader
 from maskrcnn_benchmark.solver import make_lr_scheduler
@@ -25,6 +25,7 @@ from maskrcnn_benchmark.utils.comm import synchronize, \
 from maskrcnn_benchmark.utils.imports import import_file
 from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.miscellaneous import mkdir
+import torch.optim.lr_scheduler as lr_scheduler
 
 
 def train(cfg, local_rank, distributed):
@@ -40,6 +41,9 @@ def train(cfg, local_rank, distributed):
     optimizer = make_optimizer(cfg, model)
     scheduler = make_lr_scheduler(cfg, optimizer)
 
+    #lf = lambda x: (((1 + math.cos(x * math.pi / 300)) / 2) ** 1.0) * 0.9 + 0.1  # cosine
+    #scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+    
     if distributed:
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[local_rank], output_device=local_rank,
@@ -48,7 +52,8 @@ def train(cfg, local_rank, distributed):
         )
 
     arguments = {}
-    arguments["iteration"] = 0
+    arguments["epoch"] = 0
+    arguments["epochs"] = cfg.SOLVER.EPOCHES
 
     output_dir = cfg.OUTPUT_DIR
 
@@ -58,12 +63,19 @@ def train(cfg, local_rank, distributed):
     )
     extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT)
     arguments.update(extra_checkpoint_data)
-
+    
     data_loader = make_data_loader(
         cfg,
         is_train=True,
         is_distributed=distributed,
-        start_iter=arguments["iteration"],
+        start_iter=0,
+    )
+
+    data_loader_val = make_data_loader(
+        cfg, 
+        is_train=False,
+        is_distributed=distributed,
+        start_iter=0
     )
 
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
@@ -71,6 +83,7 @@ def train(cfg, local_rank, distributed):
     do_train(
         model,
         data_loader,
+        data_loader_val,
         optimizer,
         scheduler,
         checkpointer,

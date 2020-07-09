@@ -8,6 +8,11 @@ import torch.distributed as dist
 
 from maskrcnn_benchmark.utils.comm import get_world_size, is_pytorch_1_1_0_or_later
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
+from torch.utils.tensorboard import SummaryWriter
+from .tb_utils import plot_images, restore_im_meanstd
+from tqdm import tqdm
+from .inference import inference
+import os
 
 
 def reduce_loss_dict(loss_dict):
@@ -38,6 +43,7 @@ def reduce_loss_dict(loss_dict):
 def do_train(
     model,
     data_loader,
+    data_loader_val,
     optimizer,
     scheduler,
     checkpointer,
@@ -48,74 +54,102 @@ def do_train(
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
-    max_iter = len(data_loader)
-    start_iter = arguments["iteration"]
+    start_epoch = arguments["epoch"]
+    epochs = arguments["epochs"]
     model.train()
-    start_training_time = time.time()
-    end = time.time()
-    pytorch_1_1_0_or_later = is_pytorch_1_1_0_or_later()
-    for iteration, (images, targets, _) in enumerate(data_loader, start_iter):
-        data_time = time.time() - end
-        iteration = iteration + 1
-        arguments["iteration"] = iteration
 
-        # in pytorch >= 1.1.0, scheduler.step() should be run after optimizer.step()
-        if not pytorch_1_1_0_or_later:
-            scheduler.step()
+    #start_training_time = time.time()
+    #end = time.time()
 
-        images = images.to(device)
-        targets = [target.to(device) for target in targets]
+    tb_writer = SummaryWriter(comment="")
+    best_map = 0
+    for epoch in range(start_epoch,epochs):
 
-        loss_dict = model(images, targets)
+        model.train()
+        print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'loss', 'cls', 'reg', 'center', 'targets', 'img_size'))
+        pbar = tqdm(enumerate(data_loader), total=len(data_loader))
+        start_debug = 0
+        #import pdb; pdb.set_trace()
+        
+        for iteration, (images, targets, _) in pbar:
+            #data_time = time.time() - end
+            iteration = iteration + 1
+            arguments["iteration"] = iteration
+            
+            if iteration < 10 and tb_writer:
+                img = images.tensors.clone()
+                img = restore_im_meanstd(img)
+                
+                res = plot_images(img, targets)
+                for b, tm in enumerate(res):
+                    f = 'train_iter%g_batch%g.jpg' % (iteration, b)
+                    tb_writer.add_image(f, tm[:,:,[2,1,0]] / 255, dataformats='HWC', global_step=epoch)
+            
+            images = images.to(device)
+            targets = [target.to(device) for target in targets]
 
-        losses = sum(loss for loss in loss_dict.values())
+            loss_dict = model(images, targets)
 
-        # reduce losses over all GPUs for logging purposes
-        loss_dict_reduced = reduce_loss_dict(loss_dict)
-        losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-        meters.update(loss=losses_reduced, **loss_dict_reduced)
+            losses = sum(loss for loss in loss_dict.values())
 
-        optimizer.zero_grad()
-        losses.backward()
-        optimizer.step()
+            # reduce losses over all GPUs for logging purposes
+            loss_dict_reduced = reduce_loss_dict(loss_dict)
+            losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+            meters.update(loss=losses_reduced, **loss_dict_reduced)
 
-        if pytorch_1_1_0_or_later:
-            scheduler.step()
+            optimizer.zero_grad()
+            losses.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
-        batch_time = time.time() - end
-        end = time.time()
-        meters.update(time=batch_time, data=data_time)
+            '''
+            batch_time = time.time() - end
+            end = time.time()
+            meters.update(time=batch_time, data=data_time)
+            '''
+            
+            mloss = [meters.meters['loss'].avg, meters.meters['loss_cls'].avg, \
+                meters.meters['loss_reg'].avg, meters.meters['loss_centerness'].avg]
+            # Print
+            
+            mem = '%.3gG' % (torch.cuda.memory_cached() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
+            s = ('%10s' * 2 + '%10.4g' * 6) % ('%g/%g' % (epoch, epochs - 1), mem, 
+                *mloss, sum([len(x) for x in targets]), min([min(x) for x in images.image_sizes]))
+            pbar.set_description(s)
 
-        eta_seconds = meters.time.global_avg * (max_iter - iteration)
-        eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
+            if start_debug > 10:
+                break
+            start_debug += 1
 
-        if iteration % 20 == 0 or iteration == max_iter:
-            logger.info(
-                meters.delimiter.join(
-                    [
-                        "eta: {eta}",
-                        "iter: {iter}",
-                        "{meters}",
-                        "lr: {lr:.6f}",
-                        "max mem: {memory:.0f}",
-                    ]
-                ).format(
-                    eta=eta_string,
-                    iter=iteration,
-                    meters=str(meters),
-                    lr=optimizer.param_groups[0]["lr"],
-                    memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
-                )
+        if tb_writer:
+            tag_train = ['train/loss', 'train/loss_cls', 'train/loss_reg', 'train/loss_centerness']
+            for tag in [os.path.split(x)[1] for x in tag_train]:
+                tb_writer.add_scalar('train/'+ tag, meters.meters[tag].avg, epoch)
+            
+            
+
+        results, maps = inference(model, data_loader_val, "val")
+
+        if  tb_writer:
+            tags = ['metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/F1']
+            for tag, x in zip(tags, results):
+                tb_writer.add_scalar(tag, x, epoch)
+                
+        checkpointer.save("model_last", **arguments)
+        if results[2] > best_map:
+                checkpointer.save("model_{}".format("best"), **arguments)
+                best_map = results[2]
+        
+        scheduler.step()
+        start_iter = 0
+
+        '''
+        total_training_time = time.time() - start_training_time
+        total_time_str = str(datetime.timedelta(seconds=total_training_time))
+        
+        logger.info(
+            "Total training time: {} ({:.4f} s / it)".format(
+                total_time_str, total_training_time / (max_iter)
             )
-        if iteration % checkpoint_period == 0:
-            checkpointer.save("model_{:07d}".format(iteration), **arguments)
-        if iteration == max_iter:
-            checkpointer.save("model_final", **arguments)
-
-    total_training_time = time.time() - start_training_time
-    total_time_str = str(datetime.timedelta(seconds=total_training_time))
-    logger.info(
-        "Total training time: {} ({:.4f} s / it)".format(
-            total_time_str, total_training_time / (max_iter)
         )
-    )
+        '''

@@ -1,6 +1,6 @@
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
-  WEIGHT: "fcos_fwh/model_final.pth"
+  WEIGHT: ""
   RPN_ONLY: True
   FCOS_ON: True
   BACKBONE:
