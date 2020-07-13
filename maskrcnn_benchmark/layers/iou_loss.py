@@ -36,7 +36,7 @@ class IOULoss(nn.Module):
 
         iou_wh = 1
         giou_wh = 1
-        if pred.shape[1] !=4:
+        if pred.shape[1] == 6:
             pred_w, pred_h = pred[:,4], pred[:,5]
             target_w, target_h = target[:,4], target[:,5]
             insert_wh = torch.min(pred_w, target_w) * torch.min(pred_h, target_h)
@@ -44,6 +44,8 @@ class IOULoss(nn.Module):
             union_wh = target_w * target_h + pred_w * pred_h - insert_wh
             iou_wh = insert_wh / union_wh
             giou_wh = iou_wh - (bb_wh - union_wh) / bb_wh
+        
+
         
         if self.loc_loss_type == 'iou':
             losses = -torch.log(ious) + -torch.log(iou_wh) * a

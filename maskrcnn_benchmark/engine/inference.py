@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 from maskrcnn_benchmark.data.datasets.evaluation import evaluate
-from ..utils.comm import is_main_process, get_world_size
+from ..utils.comm import is_main_process, get_world_size, get_rank
 from ..utils.comm import all_gather
 from ..utils.comm import synchronize
 from ..utils.timer import Timer, get_time_str
@@ -26,11 +26,11 @@ def compute_on_dataset(model, data_loader, device, timer=None):
     rank0 = is_main_process()
 
     if rank0:
-        pbar = tqdm(data_loader, desc=s, total=len(data_loader))
+        pbar_test = tqdm(data_loader, desc=s, total=len(data_loader))
     else:
-        pbar = data_loader
+        pbar_test = data_loader
 
-    for debug_num, batch in enumerate(pbar):
+    for debug_num, batch in enumerate(pbar_test):
         images, targets, image_ids = batch
         
         images = images.to(device)
@@ -81,8 +81,7 @@ def compute_on_dataset(model, data_loader, device, timer=None):
                             break
             
             stats.append((correct, score_p, labels_p, labels))
-        if debug_num>50:
-            break
+
     return stats
 
 

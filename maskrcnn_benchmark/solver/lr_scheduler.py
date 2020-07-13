@@ -7,6 +7,48 @@ import torch
 # FIXME ideally this would be achieved with a CombinedLRScheduler,
 # separating MultiStepLR with WarmupLR
 # but the current LRScheduler design doesn't allow it
+class WarmupLambdaLR(torch.optim.lr_scheduler._LRScheduler):
+    def __init__(
+        self,
+        optimizer,
+        warmup_factor=1./10,
+        warmup_iters=100,
+        warmup_method="linear",
+        lambda_fun=None,
+        epochs=None,
+        each_num= None,
+        last_epoch=-1,
+    ):
+        if warmup_method not in ("constant", "linear"):
+            raise ValueError(
+                "Only 'constant' or 'linear' warmup_method accepted"
+                "got {}".format(warmup_method)
+            )
+
+        self.warmup_factor = warmup_factor
+        self.warmup_iters = warmup_iters
+        self.warmup_method = warmup_method
+        self.lambda_fun = lambda_fun
+        self.epochs = epochs
+        self.each_num = each_num
+        super(WarmupLambdaLR, self).__init__(optimizer,last_epoch)
+    
+    def get_lr(self):
+        warmup_factor = 1
+        if self.last_epoch < self.warmup_iters:
+            if self.warmup_method == "constant":
+                warmup_factor = self.warmup_factor
+            elif self.warmup_method == "linear":
+                alpha = float(self.last_epoch) / self.warmup_iters
+                warmup_factor = self.warmup_factor * (1 - alpha) + alpha
+        return [ 
+            base_lr * warmup_factor * 
+                self.lambda_fun(self.last_epoch, self.epochs, self.each_num)
+            for base_lr in self.base_lrs
+        ]
+            
+        
+
 class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
     def __init__(
         self,
@@ -34,29 +76,19 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
         self.warmup_factor = warmup_factor
         self.warmup_iters = warmup_iters
         self.warmup_method = warmup_method
-        self.iswarmup = False
         super(WarmupMultiStepLR, self).__init__(optimizer, last_epoch)
 
     def get_lr(self):
         warmup_factor = 1
-        '''
         if self.last_epoch < self.warmup_iters:
             if self.warmup_method == "constant":
                 warmup_factor = self.warmup_factor
             elif self.warmup_method == "linear":
                 alpha = float(self.last_epoch) / self.warmup_iters
                 warmup_factor = self.warmup_factor * (1 - alpha) + alpha
-        '''
-        if self.iswarmup:
-            if self.warmup_method == 'constant':
-                warmup_factor = self.warmup_factor
-            elif self.warmup_method == 'linear':
-                raise NotImplementedError("wraped warmup method!")
         return [
             base_lr
             * warmup_factor
             * self.gamma ** bisect_right(self.milestones, self.last_epoch)
             for base_lr in self.base_lrs
         ]
-    def set_warmup(self):
-        self.iswarmup = True

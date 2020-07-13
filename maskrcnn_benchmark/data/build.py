@@ -83,7 +83,7 @@ def _compute_aspect_ratios(dataset):
 
 
 def make_batch_data_sampler(
-    dataset, sampler, aspect_grouping, images_per_batch, num_iters=None, start_iter=0
+    dataset, sampler, aspect_grouping, images_per_batch, num_epochs=None, num_iters=None, start_epoch=0, start_iter=0
 ):
     if aspect_grouping:
         if not isinstance(aspect_grouping, (list, tuple)):
@@ -101,10 +101,14 @@ def make_batch_data_sampler(
         batch_sampler = samplers.IterationBasedBatchSampler(
             batch_sampler, num_iters, start_iter
         )
+    elif num_epochs is not None:
+        batch_sampler =  samplers.EpochsBasedBatchSampler(
+            batch_sampler, num_epochs, start_epoch
+        )
     return batch_sampler
 
 
-def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
+def make_data_loader(cfg, is_train=True, is_distributed=False, start_epoch=0, start_iter=0):
     num_gpus = get_world_size()
     if is_train:
         images_per_batch = cfg.SOLVER.IMS_PER_BATCH
@@ -125,6 +129,7 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
         shuffle = False if not is_distributed else True
         num_iters = None
         start_iter = 0
+        start_epoch = 0
 
     if images_per_gpu > 1:
         logger = logging.getLogger(__name__)
@@ -156,10 +161,11 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
     data_loaders = []
     if num_iters is not None:
         num_iters = None
+    num_epochs = cfg.SOLVER.EPOCHES
     for dataset in datasets:
         sampler = make_data_sampler(dataset, shuffle, is_distributed)
         batch_sampler = make_batch_data_sampler(
-            dataset, sampler, aspect_grouping, images_per_gpu, num_iters, start_iter
+            dataset, sampler, aspect_grouping, images_per_gpu, num_epochs, num_iters, start_epoch, start_iter
         )
         collator = BatchCollator(cfg.DATALOADER.SIZE_DIVISIBILITY)
         num_workers = cfg.DATALOADER.NUM_WORKERS

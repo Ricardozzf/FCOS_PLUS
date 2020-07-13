@@ -1,7 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import torch
 
-from .lr_scheduler import WarmupMultiStepLR
+from .lr_scheduler import WarmupMultiStepLR, WarmupLambdaLR
 
 
 def make_optimizer(cfg, model):
@@ -16,12 +16,23 @@ def make_optimizer(cfg, model):
             weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
         params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
-    optimizer = torch.optim.SGD(params, lr, momentum=cfg.SOLVER.MOMENTUM)
-    #optimizer = torch.optim.Adam(params, lr=lr)
+    #optimizer = torch.optim.SGD(params, lr, momentum=cfg.SOLVER.MOMENTUM)
+    optimizer = torch.optim.Adam(params, lr=lr)
     return optimizer
 
 
-def make_lr_scheduler(cfg, optimizer):
+def make_lr_scheduler(cfg, optimizer, lambda_fun=None, each_nums=None):
+    return WarmupLambdaLR(
+        optimizer,
+        warmup_factor=0.01,
+        warmup_iters=100,
+        warmup_method='linear',
+        lambda_fun=lambda_fun,
+        epochs=cfg.SOLVER.EPOCHES, 
+        each_num=each_nums,
+
+    )
+    '''
     return WarmupMultiStepLR(
         optimizer,
         cfg.SOLVER.STEPS,
@@ -30,3 +41,4 @@ def make_lr_scheduler(cfg, optimizer):
         warmup_iters=cfg.SOLVER.WARMUP_ITERS,
         warmup_method=cfg.SOLVER.WARMUP_METHOD,
     )
+    '''

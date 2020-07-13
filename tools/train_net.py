@@ -27,6 +27,9 @@ from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.miscellaneous import mkdir
 import torch.optim.lr_scheduler as lr_scheduler
 
+def lf(x, epochs, each_num):
+        return (((1 + math.cos(x * math.pi / (epochs * each_num))) / 2) ** 1.0) * 0.9 + 0.1
+
 
 def train(cfg, local_rank, distributed):
     model = build_detection_model(cfg)
@@ -38,10 +41,24 @@ def train(cfg, local_rank, distributed):
             "SyncBatchNorm is only available in pytorch >= 1.1.0"
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     '''
-    optimizer = make_optimizer(cfg, model)
-    scheduler = make_lr_scheduler(cfg, optimizer)
+    data_loader = make_data_loader(
+        cfg,
+        is_train=True,
+        is_distributed=distributed,
+        start_iter=0,
+    )
 
-    #lf = lambda x: (((1 + math.cos(x * math.pi / 300)) / 2) ** 1.0) * 0.9 + 0.1  # cosine
+    data_loader_val = make_data_loader(
+        cfg, 
+        is_train=False,
+        is_distributed=distributed,
+        start_iter=0,
+    )
+
+    optimizer = make_optimizer(cfg, model)
+    #lf = lambda x: (((1 + math.cos(x * math.pi / cfg.SOLVER.EPOCHES * len(data_loader))) / 2) ** 1.0) * 0.9 + 0.1  # cosine
+    
+    scheduler = make_lr_scheduler(cfg, optimizer, lf, len(data_loader))
     #scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     
     if distributed:
@@ -64,22 +81,10 @@ def train(cfg, local_rank, distributed):
     extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT)
     arguments.update(extra_checkpoint_data)
     
-    data_loader = make_data_loader(
-        cfg,
-        is_train=True,
-        is_distributed=distributed,
-        start_iter=0,
-    )
-
-    data_loader_val = make_data_loader(
-        cfg, 
-        is_train=False,
-        is_distributed=distributed,
-        start_iter=0
-    )
+    
 
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
-
+    synchronize()
     do_train(
         model,
         data_loader,
@@ -185,6 +190,7 @@ def main():
     '''
 
     model = train(cfg, args.local_rank, args.distributed)
+
     '''
     if not args.skip_test:
         run_test(cfg, model, args.distributed)

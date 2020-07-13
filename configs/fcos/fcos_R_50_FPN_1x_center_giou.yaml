@@ -14,7 +14,7 @@ MODEL:
     POS_RADIUS: 1.5
     LOC_LOSS_TYPE: "giou"
 DATASETS:
-  TRAIN: ("coco_2014_train", )
+  TRAIN: ("coco_2014_minival", )
   TEST: ("coco_2014_minival", )
 INPUT:
   MIN_SIZE_TRAIN: (800,)
@@ -25,10 +25,11 @@ DATALOADER:
   SIZE_DIVISIBILITY: 32
   NUM_WORKERS: 0
 SOLVER:
-  BASE_LR: 0.0001
+  BASE_LR: 0.01
   WEIGHT_DECAY: 0.0001
   STEPS: (7, 9)
   EPOCHES: 10
   IMS_PER_BATCH: 16
   WARMUP_METHOD: "constant"
+  CHECKPOINT_PERIOD: 500
 OUTPUT_DIR: "res/fcos_coco"

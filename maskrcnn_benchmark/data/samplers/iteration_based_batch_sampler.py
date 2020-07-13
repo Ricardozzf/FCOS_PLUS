@@ -2,6 +2,31 @@
 from torch.utils.data.sampler import BatchSampler
 
 
+class EpochsBasedBatchSampler(BatchSampler):
+    """
+    Wraps a BatchSampler, resampling from it until
+    a specified number of iterations have been sampled
+    """
+
+    def __init__(self, batch_sampler, num_epochs, start_epoch=0):
+        self.batch_sampler = batch_sampler
+        self.num_epochs = num_epochs
+        self.epoch = start_epoch
+
+    def __iter__(self):
+        epoch = self.epoch
+        # if the underlying sampler has a set_epoch method, like
+        # DistributedSampler, used for making each process see
+        # a different split of the dataset, then set it
+        if hasattr(self.batch_sampler.sampler, "set_epoch"):
+            self.batch_sampler.sampler.set_epoch(epoch)
+        for batch in self.batch_sampler:
+            yield batch
+        self.epoch += 1
+
+    def __len__(self):
+        return len(self.batch_sampler)
+
 class IterationBasedBatchSampler(BatchSampler):
     """
     Wraps a BatchSampler, resampling from it until
