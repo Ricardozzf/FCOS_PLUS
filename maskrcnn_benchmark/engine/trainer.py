@@ -58,18 +58,20 @@ def do_train(
     meters = MetricLogger(delimiter="  ")
     start_epoch = arguments["epoch"]
     epochs = arguments["epochs"]
-    model.train()
     rank = get_rank()
     train_nums = len(data_loader)
+    best_map = 0
+
     #start_training_time = time.time()
     #end = time.time()
 
     if rank == 0:
         tb_writer = SummaryWriter(comment="", log_dir="log/run3")
-    best_map = 0
-    for epoch in range(start_epoch,epochs):
 
+    for epoch in range(start_epoch,epochs):
+        arguments["epoch"] = epoch
         model.train()
+
         if rank == 0:
             print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'loss', 'cls', 'reg', 'center', 'targets', 'img_size'))
             pbar = tqdm(enumerate(data_loader), total=train_nums)
@@ -77,10 +79,10 @@ def do_train(
             pbar = enumerate(data_loader)
         
         for iteration, (images, targets, _) in pbar:
-            #data_time = time.time() - end
+            
             arguments["iteration"] = iteration
             
-            if iteration < 10 and rank == 0:
+            if iteration+epoch*train_nums < 10 and rank == 0:
                 img = images.tensors.clone()
                 img = restore_im_meanstd(img)
                 
@@ -101,20 +103,6 @@ def do_train(
             losses_reduced = sum(loss for loss in loss_dict_reduced.values())
             meters.update(loss=losses_reduced, **loss_dict_reduced)
 
-            optimizer.zero_grad()
-            losses.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-
-            scheduler.step()
-
-            '''
-            batch_time = time.time() - end
-            end = time.time()
-            meters.update(time=batch_time, data=data_time)
-            '''
-            
-            
             # Print
             if rank == 0:
                 mloss = [meters.meters['loss'].avg, meters.meters['loss_cls'].avg, \
@@ -128,17 +116,33 @@ def do_train(
                     for tag in [os.path.split(x)[1] for x in tag_train]:
                         tb_writer.add_scalar('train/'+ tag, meters.meters[tag].avg, epoch*train_nums+iteration)
 
-        checkpointer.save("model_last", **arguments)
-            
-        infer_res = inference(model, data_loader_val, "val")
-        
+            optimizer.zero_grad()
+            losses.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
+            optimizer.step()
+            scheduler.step()
+
+            # avoid one node multi-GPUS distributed train leading one process hangs 
+            if iteration>train_nums-3:
+                break
+
         if rank == 0:
+            pbar.close()
+       
+        checkpointer.save("model_last", **arguments)
+
+        infer_res=None
+        if epoch % 1 ==0:
+            infer_res = inference(model, data_loader_val, "val")
+        
+        if rank == 0 and infer_res is not None:
             results, maps = infer_res
             if results[2] > best_map:
                     checkpointer.save("model_{}".format("best"), **arguments)
                     best_map = results[2]
             
-            tags = ['metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/F1']
+            tags = ['metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP']
             for tag, x in zip(tags, results):
                 tb_writer.add_scalar(tag, x, epoch)
 

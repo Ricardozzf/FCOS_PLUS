@@ -42,6 +42,11 @@ def synchronize():
     world_size = dist.get_world_size()
     if world_size == 1:
         return
+    
+    # avoid dist.barried blocked other process
+    signal = torch.tensor([1]).to(f"cuda:{get_rank()}")
+    work = dist.all_reduce(signal, async_op=True)
+    work.wait()
     dist.barrier()
 
 

@@ -27,6 +27,10 @@ from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.miscellaneous import mkdir
 import torch.optim.lr_scheduler as lr_scheduler
 
+# don't show warning log
+import warnings
+warnings.filterwarnings("ignore")
+
 def lf(x, epochs, each_num):
         return (((1 + math.cos(x * math.pi / (epochs * each_num))) / 2) ** 1.0) * 0.9 + 0.1
 

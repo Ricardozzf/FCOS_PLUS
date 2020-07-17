@@ -13,6 +13,7 @@ from ..utils.comm import synchronize
 from ..utils.timer import Timer, get_time_str
 from ..structures.boxlist_ops import boxlist_iou, boxlist_nms
 import numpy as np
+import torch.distributed as dist
 
 
 def compute_on_dataset(model, data_loader, device, timer=None):
@@ -22,7 +23,7 @@ def compute_on_dataset(model, data_loader, device, timer=None):
     s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     iouv = torch.linspace(0.5, 0.95, 10)
     niou = iouv.numel()
-
+    stats = []
     rank0 = is_main_process()
 
     if rank0:
@@ -30,9 +31,8 @@ def compute_on_dataset(model, data_loader, device, timer=None):
     else:
         pbar_test = data_loader
 
-    for debug_num, batch in enumerate(pbar_test):
-        images, targets, image_ids = batch
-        
+    for debug_num, (images, targets, image_ids) in enumerate(pbar_test):
+
         images = images.to(device)
         with torch.no_grad():
             if timer:
@@ -44,16 +44,18 @@ def compute_on_dataset(model, data_loader, device, timer=None):
             for o in output:
                 o.remove_vwvh() 
 
-        stats = []
         for target, pre in zip(targets, output):
             pre = pre.clip_to_image()
             pre = boxlist_nms(pre, nms_thresh=0.6).to(cpu_device)
             
-    
-            labels = target.extra_fields['labels']
-            labels_p = pre.extra_fields['labels']
-            score_p = pre.extra_fields['scores']
+            labels = target.extra_fields['labels'].clone()
+            labels_p = pre.extra_fields['labels'].clone()
+            score_p = pre.extra_fields['scores'].clone()
 
+            score_p, indices = torch.sort(score_p, descending=True)
+            labels_p = labels_p[indices]
+            pre = pre[indices]
+            
             nl = len(labels)
 
             if len(pre) == 0:
@@ -61,11 +63,13 @@ def compute_on_dataset(model, data_loader, device, timer=None):
                     stats.append((torch.zeros(0 , niou, dtype=torch.bool), torch.Tensor(), \
                         torch.Tensor(), labels))
                 continue
+            if nl == 0:
+                continue
 
             detected = []
             correct = torch.zeros(len(pre), niou, dtype=torch.bool)
 
-
+            
             for cls in torch.unique(labels):
                 ti = (cls == labels).nonzero().view(-1)
                 pi = (cls == labels_p).nonzero().view(-1)
@@ -75,12 +79,23 @@ def compute_on_dataset(model, data_loader, device, timer=None):
 
                     for j in (ious > iouv[0]).nonzero():
                         d = ti[indices[j]]
-                        detected.append(d)
-                        correct[pi[j]] = ious[j] > iouv
-                        if len(detected) == nl:
-                            break
-            
+                        
+                        if d not in detected:
+                            detected.append(d)
+                            correct[pi[j]] = ious[j] > iouv
+                            if len(detected) == nl:
+                                break
+            try:
+                assert (correct.shape[0] == score_p.shape[0]), "correct score_p must be same!"
+                assert (correct.shape[0] == labels_p.shape[0]), "score_p labels_p must be same!"
+                assert (0 != labels.shape[0]), "labels must not be zero!"
+            except:
+                print(f"{correct.shape[0]:d}  {score_p.shape[0]:d} {labels_p.shape[0]:d} {labels.shape[0]:d}")
+                import pdb; pdb.set_trace()
             stats.append((correct, score_p, labels_p, labels))
+
+    if rank0:
+        pbar_test.close()
 
     return stats
 
@@ -130,12 +145,14 @@ def inference(
     total_timer = Timer()
     inference_timer = Timer()
     total_timer.tic()
-    predictions = compute_on_dataset(model, data_loader[0], device, inference_timer)
+    synchronize()
+    predictions = compute_on_dataset(model, data_loader[0], device)
     # wait for all processes to complete before measuring the time
     synchronize()
+    '''
     total_time = total_timer.toc()
     total_time_str = get_time_str(total_time)
-    '''
+    
     logger.info(
         "Total run time: {} ({} s / img per device, on {} devices)".format(
             total_time_str, total_time * num_devices / len(dataset), num_devices
@@ -155,8 +172,11 @@ def inference(
         return None
 
     predictions = [i for p in predictions for i in p]
-    
-    stats = [torch.cat(x,0) for x in zip(*predictions)]
+    try:
+        stats = [torch.cat(x,0) for x in zip(*predictions)]
+    except:
+        import pdb
+        pdb.set_trace()
     if len(stats):
         p, r, ap, f1, ap_class = ap_per_class(*stats)
         p, r, ap50, ap = p[:, 0], r[:, 0], ap[:, 0], ap.mean(1)
