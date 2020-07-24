@@ -7,7 +7,7 @@ class IOULoss(nn.Module):
         super(IOULoss, self).__init__()
         self.loc_loss_type = loc_loss_type
 
-    def forward(self, pred, target, weight=None, a=1):
+    def forward(self, pred, target, weight=None, a=None):
         pred_left = pred[:, 0]
         pred_top = pred[:, 1]
         pred_right = pred[:, 2]
@@ -34,27 +34,20 @@ class IOULoss(nn.Module):
         ious = (area_intersect + 1.0) / (area_union + 1.0)
         gious = ious - (ac_uion - area_union) / ac_uion
 
-        
-        iou_wh = 1
-        giou_wh = 1
-        '''
-        if pred.shape[1] == 6:
-            pred_w, pred_h = pred[:,4], pred[:,5]
-            target_w, target_h = target[:,4], target[:,5]
-            insert_wh = torch.min(pred_w, target_w) * torch.min(pred_h, target_h)
-            bb_wh = torch.max(pred_w, target_w) * torch.max(pred_h, target_h)
-            union_wh = target_w * target_h + pred_w * pred_h - insert_wh
-            iou_wh = insert_wh / union_wh
-            giou_wh = iou_wh - (bb_wh - union_wh) / bb_wh
-        '''
+        dis_x = (target_left + target_right - pred_left - pred_right) / 2
+        dis_y = (target_top + target_bottom - pred_top - pred_bottom) / 2
+        c = g_h_intersect**2 + g_w_intersect**2
+        iou_dist = (dis_x**2 + dis_y**2) / c
 
         
         if self.loc_loss_type == 'iou':
-            losses = -torch.log(ious) + -torch.log(iou_wh) * a
+            losses = -torch.log(ious)
         elif self.loc_loss_type == 'linear_iou':
-            losses = 1 - ious + a*(1 - iou_wh)
+            losses = 1 - ious
         elif self.loc_loss_type == 'giou':
-            losses = 1 - gious + a*(1 - giou_wh)
+            losses = 1 - gious
+        elif self.loc_loss_type== 'diou':
+            losses = 1 - ious + iou_dist
         else:
             raise NotImplementedError
 

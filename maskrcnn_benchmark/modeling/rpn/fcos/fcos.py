@@ -71,7 +71,7 @@ class FCOSHead(torch.nn.Module):
             padding=1
         )
         self.offset_pred = nn.Conv2d(
-            in_channels, 2 * self.dense_points, kernel_size=3, stride=1,
+            in_channels, 4 * self.dense_points, kernel_size=3, stride=1,
             padding=1
         )
         self.centerness = nn.Conv2d(
@@ -106,7 +106,9 @@ class FCOSHead(torch.nn.Module):
             bbox_tmp = torch.exp(self.scales[l](
                 self.bbox_pred(self.bbox_tower(feature))
             ))
-            offset_tmp = self.offset_pred(self.offset_tower(feature))
+            offset_tmp = torch.exp(self.scales[l](
+                self.offset_pred(self.offset_tower(feature))
+            ))
             
             bbox_reg.append(torch.cat([bbox_tmp, offset_tmp], dim=1))
         return logits, bbox_reg, centerness
