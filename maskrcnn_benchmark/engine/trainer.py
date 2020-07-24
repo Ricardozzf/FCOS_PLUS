@@ -59,21 +59,31 @@ def do_train(
     start_epoch = arguments["epoch"]
     epochs = arguments["epochs"]
     rank = get_rank()
+    world_size = get_world_size()
     train_nums = len(data_loader)
+    if world_size > 1:
+        local_size = torch.IntTensor([len(data_loader)]).to("cuda")
+        size_list = [torch.IntTensor([0]).to("cuda") for _ in range(world_size)]
+        dist.all_gather(size_list, local_size)
+        size_list = [int(size.item()) for size in size_list]
+        if rank == 0:
+            print(f"size list:{size_list}")
+        train_nums = min(size_list)
     best_map = 0
-
+    logdir = os.path.split(arguments['log'])[-1]
     #start_training_time = time.time()
     #end = time.time()
-
+    
+    
     if rank == 0:
-        tb_writer = SummaryWriter(comment="", log_dir="log/run3")
+        tb_writer = SummaryWriter(comment="", log_dir="log/"+logdir)
 
     for epoch in range(start_epoch,epochs):
         arguments["epoch"] = epoch
         model.train()
 
         if rank == 0:
-            print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'loss', 'cls', 'reg', 'center', 'targets', 'img_size'))
+            print(('\n' + '%10s' * 9) % ('Epoch', 'gpu_mem', 'loss', 'cls', 'reg', 'center', 'offset','targets', 'img_size'))
             pbar = tqdm(enumerate(data_loader), total=train_nums)
         else:
             pbar = enumerate(data_loader)
@@ -105,31 +115,33 @@ def do_train(
 
             # Print
             if rank == 0:
-                mloss = [meters.meters['loss'].avg, meters.meters['loss_cls'].avg, \
-                    meters.meters['loss_reg'].avg, meters.meters['loss_centerness'].avg]
+                mloss = [meters.meters['loss'].avg, meters.meters['loss_cls'].avg, meters.meters['loss_reg'].avg, 
+                    meters.meters['loss_centerness'].avg, meters.meters['loss_offset'].avg]
                 mem = '%.3gG' % (torch.cuda.memory_cached() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-                s = ('%10s' * 2 + '%10.4g' * 6) % ('%g/%g' % (epoch, epochs - 1), mem, 
+                s = ('%10s' * 2 + '%10.4g' * 7) % ('%g/%g' % (epoch, epochs - 1), mem, 
                     *mloss, sum([len(x) for x in targets]), min([min(x) for x in images.image_sizes]))
                 pbar.set_description(s)
                 if iteration % checkpoint_period == 0:
-                    tag_train = ['train/loss', 'train/loss_cls', 'train/loss_reg', 'train/loss_centerness']
+                    tag_train = ['train/loss', 'train/loss_cls', 'train/loss_reg', 'train/loss_centerness', 'train/loss_offset']
                     for tag in [os.path.split(x)[1] for x in tag_train]:
                         tb_writer.add_scalar('train/'+ tag, meters.meters[tag].avg, epoch*train_nums+iteration)
-
+            
+            
+            
             optimizer.zero_grad()
             losses.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
             optimizer.step()
             scheduler.step()
-
+        
             # avoid one node multi-GPUS distributed train leading one process hangs 
-            if iteration>train_nums-3:
+            if iteration >= train_nums-1:
                 break
 
         if rank == 0:
             pbar.close()
-       
+        synchronize()
         checkpointer.save("model_last", **arguments)
 
         infer_res=None
@@ -142,10 +154,11 @@ def do_train(
                     checkpointer.save("model_{}".format("best"), **arguments)
                     best_map = results[2]
             
-            tags = ['metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP']
+            tags = ['metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP', 'metrics/offset']
             for tag, x in zip(tags, results):
                 tb_writer.add_scalar(tag, x, epoch)
-
+        
+        torch.cuda.empty_cache()
         
 
         '''

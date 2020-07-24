@@ -24,8 +24,8 @@ def make_optimizer(cfg, model):
 def make_lr_scheduler(cfg, optimizer, lambda_fun=None, each_nums=None):
     return WarmupLambdaLR(
         optimizer,
-        warmup_factor=0.1,
-        warmup_iters=2500,
+        warmup_factor=cfg.SOLVER.WARMUP_FACTOR,
+        warmup_iters=cfg.SOLVER.WARMUP_ITERS,
         warmup_method='constant',
         lambda_fun=lambda_fun,
         epochs=cfg.SOLVER.EPOCHES, 

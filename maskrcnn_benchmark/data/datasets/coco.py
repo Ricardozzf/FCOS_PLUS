@@ -8,6 +8,8 @@ from maskrcnn_benchmark.structures.keypoint import PersonKeypoints
 
 
 min_keypoints_per_image = 10
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 def _count_visible_keypoints(anno):
@@ -15,7 +17,7 @@ def _count_visible_keypoints(anno):
 
 
 def _has_only_empty_bbox(anno):
-    return all(any(o <= 1 for o in obj["bbox"][2:]) for obj in anno)
+    return all(any(o <= 1 for o in obj["bbox"][2:4]) for obj in anno)
 
 
 def has_valid_annotation(anno):
@@ -71,7 +73,7 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
         anno = [obj for obj in anno if obj["iscrowd"] == 0]
 
         boxes = [obj["bbox"] for obj in anno]
-        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+        boxes = torch.as_tensor(boxes).reshape(-1, 6)  # guard against no boxes
         target = BoxList(boxes, img.size, mode="xywh").convert("xyxy")
 
         classes = [obj["category_id"] for obj in anno]

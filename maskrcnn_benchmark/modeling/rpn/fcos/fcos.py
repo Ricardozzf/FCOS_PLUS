@@ -21,6 +21,7 @@ class FCOSHead(torch.nn.Module):
 
         cls_tower = []
         bbox_tower = []
+        offset_tower = []
 
         for i in range(cfg.MODEL.FCOS.NUM_CONVS):
             cls_tower.append(
@@ -45,10 +46,21 @@ class FCOSHead(torch.nn.Module):
             )
             bbox_tower.append(nn.GroupNorm(32, in_channels))
             bbox_tower.append(nn.ReLU())
+
+            offset_tower.append(
+                nn.Sequential(
+                    nn.Conv2d(in_channels,in_channels, kernel_size=3,
+                                stride=1, padding=1),
+                    nn.GroupNorm(32, in_channels),
+                    nn.ReLU()
+                )
+            )
             
 
         self.add_module('cls_tower', nn.Sequential(*cls_tower))
         self.add_module('bbox_tower', nn.Sequential(*bbox_tower))
+        self.add_module('offset_tower', nn.Sequential(*offset_tower))
+
         self.dense_points = cfg.MODEL.FCOS.DENSE_POINTS
         self.cls_logits = nn.Conv2d(
             in_channels, num_classes * self.dense_points, kernel_size=3, stride=1,
@@ -58,14 +70,18 @@ class FCOSHead(torch.nn.Module):
             in_channels, 4 * self.dense_points, kernel_size=3, stride=1,
             padding=1
         )
+        self.offset_pred = nn.Conv2d(
+            in_channels, 2 * self.dense_points, kernel_size=3, stride=1,
+            padding=1
+        )
         self.centerness = nn.Conv2d(
             in_channels, 1 * self.dense_points, kernel_size=3, stride=1,
             padding=1
         )
 
         # initialization
-        for modules in [self.cls_tower, self.bbox_tower,
-                        self.cls_logits, self.bbox_pred,
+        for modules in [self.cls_tower, self.bbox_tower,self.offset_tower,
+                        self.cls_logits, self.bbox_pred,self.offset_pred,
                         self.centerness]:
             for l in modules.modules():
                 if isinstance(l, nn.Conv2d):
@@ -87,9 +103,12 @@ class FCOSHead(torch.nn.Module):
             cls_tower = self.cls_tower(feature)
             logits.append(self.cls_logits(cls_tower))
             centerness.append(self.centerness(cls_tower))
-            bbox_reg.append(torch.exp(self.scales[l](
+            bbox_tmp = torch.exp(self.scales[l](
                 self.bbox_pred(self.bbox_tower(feature))
-            )))
+            ))
+            offset_tmp = self.offset_pred(self.offset_tower(feature))
+            
+            bbox_reg.append(torch.cat([bbox_tmp, offset_tmp], dim=1))
         return logits, bbox_reg, centerness
 
 
@@ -201,13 +220,14 @@ class FCOSModule(torch.nn.Module):
             )
 
     def _forward_train(self, locations, box_cls, box_regression, centerness, targets):
-        loss_box_cls, loss_box_reg, loss_centerness = self.loss_evaluator(
+        loss_box_cls, loss_box_reg, loss_centerness, loss_offset = self.loss_evaluator(
             locations, box_cls, box_regression, centerness, targets
         )
         losses = {
             "loss_cls": loss_box_cls,
             "loss_reg": loss_box_reg,
-            "loss_centerness": loss_centerness
+            "loss_centerness": loss_centerness,
+            "loss_offset":loss_offset
         }
         return None, losses
 

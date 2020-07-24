@@ -28,3 +28,10 @@ dist/
 # project dirs
 /datasets
 /models
+
+# save model and loss tensorboard
+res/
+log/
+
+# vscode file
+.vscode

@@ -14,6 +14,7 @@ from maskrcnn_benchmark.modeling.matcher import Matcher
 from maskrcnn_benchmark.modeling.utils import cat
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 from maskrcnn_benchmark.structures.boxlist_ops import cat_boxlist
+from maskrcnn_benchmark.layers import smooth_l1_loss
 
 
 INF = 100000000
@@ -128,22 +129,25 @@ class FCOSLossComputation(object):
             t = ys[:, None] - bboxes[:, 1][None]
             r = bboxes[:, 2][None] - xs[:, None]
             b = bboxes[:, 3][None] - ys[:, None]
+
+            w = l + r
+            h = t + b
             repeatX = l.shape[0]
             repeatY = t.shape[0]
             
             # fix 6
-            '''
+            
             scales = torch.where(object_sizes_of_interest[:,1]==INF, \
                 object_sizes_of_interest.new_tensor(800).expand(object_sizes_of_interest.shape[0]), \
                     object_sizes_of_interest[:,1])
             scales *= 1.5
             vw = (bboxes[:, 4][None].repeat(repeatX, 1) / scales[:,None]).unsqueeze(2)
             vh = (bboxes[:, 5][None].repeat(repeatY, 1) / scales[:,None]).unsqueeze(2)
-            '''
+            
             reg_targets_per_im = torch.stack([l, t, r, b], dim=2)
             if self.center_sample:
                 is_in_boxes = self.get_sample_region(
-                    bboxes,
+                    bboxes[:,:4],
                     self.strides,
                     self.num_points_per_level,
                     xs,
@@ -165,7 +169,7 @@ class FCOSLossComputation(object):
             # if there are still more than one objects for a location,
             # we choose the one with minimal area
             locations_to_min_area, locations_to_gt_inds = locations_to_gt_area.min(dim=1)
-            #reg_targets_per_im = torch.cat([reg_targets_per_im, vw, vh], dim=2) # fix 6
+            reg_targets_per_im = torch.cat([reg_targets_per_im, vw, vh], dim=2) # fix 6
             reg_targets_per_im = reg_targets_per_im[range(len(locations)), locations_to_gt_inds]
             labels_per_im = labels_per_im[locations_to_gt_inds]
             labels_per_im[locations_to_min_area == INF] = 0
@@ -208,9 +212,9 @@ class FCOSLossComputation(object):
         reg_targets_flatten = []
         for l in range(len(labels)):
             box_cls_flatten.append(box_cls[l].permute(0, 2, 3, 1).reshape(-1, num_classes))
-            box_regression_flatten.append(box_regression[l].permute(0, 2, 3, 1).reshape(-1, 4)) # fix 6
+            box_regression_flatten.append(box_regression[l].permute(0, 2, 3, 1).reshape(-1, 6)) # fix 6
             labels_flatten.append(labels[l].reshape(-1))
-            reg_targets_flatten.append(reg_targets[l].reshape(-1, 4)) # fix 6
+            reg_targets_flatten.append(reg_targets[l].reshape(-1, 6)) # fix 6
             centerness_flatten.append(centerness[l].permute(0, 2, 3, 1).reshape(-1))
         
         box_cls_flatten = torch.cat(box_cls_flatten, dim=0)
@@ -231,9 +235,14 @@ class FCOSLossComputation(object):
         if pos_inds.numel() > 0:
             centerness_targets = self.compute_centerness_targets(reg_targets_flatten)
             reg_loss = self.box_reg_loss_func(
-                box_regression_flatten,
-                reg_targets_flatten,
+                box_regression_flatten[:,:4],
+                reg_targets_flatten[:,:4],
                 centerness_targets,
+            )
+            offset_loss = smooth_l1_loss(
+                box_regression_flatten[:,4:6],
+                reg_targets_flatten[:,4:6],
+                weight=centerness_targets
             )
             centerness_loss = self.centerness_loss_func(
                 centerness_flatten,
@@ -243,7 +252,7 @@ class FCOSLossComputation(object):
             reg_loss = box_regression_flatten.sum()
             centerness_loss = centerness_flatten.sum()
 
-        return cls_loss, reg_loss, centerness_loss
+        return cls_loss, reg_loss, centerness_loss, offset_loss
 
 
 def make_fcos_loss_evaluator(cfg):

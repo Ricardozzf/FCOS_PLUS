@@ -14,24 +14,33 @@ from ..utils.timer import Timer, get_time_str
 from ..structures.boxlist_ops import boxlist_iou, boxlist_nms
 import numpy as np
 import torch.distributed as dist
+import numpy as np
 
 
 def compute_on_dataset(model, data_loader, device, timer=None):
     model.eval()
     results_dict = {}
     cpu_device = torch.device("cpu")
-    s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    s = ('%20s' + '%12s' * 7) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95', 'offset')
     iouv = torch.linspace(0.5, 0.95, 10)
     niou = iouv.numel()
     stats = []
     rank0 = is_main_process()
+    world_size = get_world_size()
+    val_nums = len(data_loader)
+    if world_size > 1:
+        local_size = torch.IntTensor([len(data_loader)]).to("cuda")
+        size_list = [torch.IntTensor([0]).to("cuda") for _ in range(world_size)]
+        dist.all_gather(size_list, local_size)
+        size_list = [int(size.item()) for size in size_list]
+        val_nums = min(size_list)
 
     if rank0:
-        pbar_test = tqdm(data_loader, desc=s, total=len(data_loader))
+        pbar_test = tqdm(data_loader, desc=s, total=val_nums)
     else:
         pbar_test = data_loader
 
-    for debug_num, (images, targets, image_ids) in enumerate(pbar_test):
+    for iteration, (images, targets, image_ids) in enumerate(pbar_test):
 
         images = images.to(device)
         with torch.no_grad():
@@ -41,8 +50,7 @@ def compute_on_dataset(model, data_loader, device, timer=None):
             if timer:
                 torch.cuda.synchronize()
                 timer.toc()
-            for o in output:
-                o.remove_vwvh() 
+
 
         for target, pre in zip(targets, output):
             pre = pre.clip_to_image()
@@ -61,7 +69,7 @@ def compute_on_dataset(model, data_loader, device, timer=None):
             if len(pre) == 0:
                 if nl:
                     stats.append((torch.zeros(0 , niou, dtype=torch.bool), torch.Tensor(), \
-                        torch.Tensor(), labels))
+                        torch.Tensor().long(), labels, torch.Tensor()))
                 continue
             if nl == 0:
                 continue
@@ -69,7 +77,7 @@ def compute_on_dataset(model, data_loader, device, timer=None):
             detected = []
             correct = torch.zeros(len(pre), niou, dtype=torch.bool)
 
-            
+            stats_wh = []
             for cls in torch.unique(labels):
                 ti = (cls == labels).nonzero().view(-1)
                 pi = (cls == labels_p).nonzero().view(-1)
@@ -83,8 +91,16 @@ def compute_on_dataset(model, data_loader, device, timer=None):
                         if d not in detected:
                             detected.append(d)
                             correct[pi[j]] = ious[j] > iouv
+                            
+                            # offset evaluate
+                            key_label = (target[[d]].bbox[:,-2:]!=0).float().sum(1).nonzero().squeeze(1)
+                            err_off = (pre[pi[j]].bbox[:,-2:]-target[[d]].bbox[:,-2:]) / (target[[d]].bbox[:,[2,3]]-target[[d]].bbox[:,[0,1]])
+                            err_off = err_off[key_label]
+                            stats_wh.append(err_off.abs().mean())
+
                             if len(detected) == nl:
                                 break
+                       
             try:
                 assert (correct.shape[0] == score_p.shape[0]), "correct score_p must be same!"
                 assert (correct.shape[0] == labels_p.shape[0]), "score_p labels_p must be same!"
@@ -92,11 +108,18 @@ def compute_on_dataset(model, data_loader, device, timer=None):
             except:
                 print(f"{correct.shape[0]:d}  {score_p.shape[0]:d} {labels_p.shape[0]:d} {labels.shape[0]:d}")
                 import pdb; pdb.set_trace()
-            stats.append((correct, score_p, labels_p, labels))
-
+            
+            if len(stats_wh) != 0:
+                stats_wh = torch.tensor(stats_wh).mean()
+            else:
+                stats_wh = torch.tensor(stats_wh)
+            stats.append((correct, score_p, labels_p, labels, stats_wh))
+        if iteration >= val_nums -1 :
+            break
+    
     if rank0:
         pbar_test.close()
-
+    
     return stats
 
 
@@ -135,9 +158,7 @@ def inference(
         expected_results_sigma_tol=4,
         output_folder=None,
 ):
-    # convert to a torch.device for efficiency
-    device = torch.device(device)
-    num_devices = get_world_size()
+    # convert to a torch.device forimport pdb; pdb.set_trace()
     #logger = logging.getLogger("maskrcnn_benchmark.inference")
     
     dataset = data_loader[0].dataset
@@ -170,8 +191,10 @@ def inference(
     predictions = _accumulate_predictions_from_multiple_gpus(predictions)
     if not is_main_process():
         return None
+    
+    off_pre = torch.tensor([i[-1].float().mean() for p in predictions  for i in p if i[-1].nelement()!=0]).mean().item()
+    predictions = [i[:-1] for p in predictions for i in p]
 
-    predictions = [i for p in predictions for i in p]
     try:
         stats = [torch.cat(x,0) for x in zip(*predictions)]
     except:
@@ -185,10 +208,10 @@ def inference(
     else:
         nt = torch.zeros(1)
     
-    pf = '%20s' + '%12.3g' * 6  # print format
-    print(pf % ('all', len(dataset), nt.sum(), mp, mr, map50, map))
+    pf = '%20s' + '%12.3g' * 7  # print format
+    print(pf % ('all', len(dataset), nt.sum(), mp, mr, map50, map, off_pre))
 
-    return (mp, mr, map50, map), None
+    return (mp, mr, map50, map, off_pre), None
 
     '''
     if output_folder:

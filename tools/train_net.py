@@ -75,6 +75,7 @@ def train(cfg, local_rank, distributed):
     arguments = {}
     arguments["epoch"] = 0
     arguments["epochs"] = cfg.SOLVER.EPOCHES
+    arguments["log"] = cfg.OUTPUT_DIR
 
     output_dir = cfg.OUTPUT_DIR
 

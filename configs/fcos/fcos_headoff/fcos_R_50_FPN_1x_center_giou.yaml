@@ -13,9 +13,10 @@ MODEL:
     CENTER_SAMPLE: True
     POS_RADIUS: 1.5
     LOC_LOSS_TYPE: "giou"
+    NUM_CLASSES: 2
 DATASETS:
-  TRAIN: ("coco_2014_minival", )
-  TEST: ("coco_2014_minival", )
+  TRAIN: ("head_offset_coco_train", )
+  TEST: ("head_offset_coco_val", )
 INPUT:
   MIN_SIZE_TRAIN: (800,)
   MAX_SIZE_TRAIN: 1333
@@ -23,15 +24,17 @@ INPUT:
   MAX_SIZE_TEST: 1333
 DATALOADER:
   SIZE_DIVISIBILITY: 32
-  #NUM_WORKERS: 0
+  NUM_WORKERS: 0
 SOLVER:
   BASE_LR: 0.0001
   WEIGHT_DECAY: 0.0001
-  STEPS: (2100, 2700)
   EPOCHES: 30
-  IMS_PER_BATCH: 16
+  IMS_PER_BATCH: 8
   WARMUP_METHOD: "constant"
+  WARMUP_ITERS: 500
+  WARMUP_FACTOR: 0.1
   CHECKPOINT_PERIOD: 100
+  #STEPS: (210000, 250000)
 TEST:
-  IMS_PER_BATCH: 16
-OUTPUT_DIR: "res/fcos_coco2"
+  IMS_PER_BATCH: 8
+OUTPUT_DIR: "res/head_off1" # Adam:: test1:0.0001, test2:0.00001   SGD:: test3:0.001, test4:0.01

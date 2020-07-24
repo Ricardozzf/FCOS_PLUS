@@ -34,8 +34,10 @@ class IOULoss(nn.Module):
         ious = (area_intersect + 1.0) / (area_union + 1.0)
         gious = ious - (ac_uion - area_union) / ac_uion
 
+        
         iou_wh = 1
         giou_wh = 1
+        '''
         if pred.shape[1] == 6:
             pred_w, pred_h = pred[:,4], pred[:,5]
             target_w, target_h = target[:,4], target[:,5]
@@ -44,7 +46,7 @@ class IOULoss(nn.Module):
             union_wh = target_w * target_h + pred_w * pred_h - insert_wh
             iou_wh = insert_wh / union_wh
             giou_wh = iou_wh - (bb_wh - union_wh) / bb_wh
-        
+        '''
 
         
         if self.loc_loss_type == 'iou':
