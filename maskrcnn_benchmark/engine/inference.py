@@ -94,9 +94,12 @@ def compute_on_dataset(model, data_loader, device, timer=None):
                             
                             # offset evaluate
                             key_label = (target[[d]].bbox[:,-2:]!=0).float().sum(1).nonzero().squeeze(1)
-                            err_off = (pre[pi[j]].bbox[:,-2:]-target[[d]].bbox[:,-2:]) / (target[[d]].bbox[:,[2,3]]-target[[d]].bbox[:,[0,1]])
+                            off_gt = target[[d]].bbox[:,-2:] - (target[[d]].bbox[:, [0,1]] + target[[d]].bbox[:, [2,3]]) / 2
+                            err_off = (pre[pi[j]].bbox[:,-2:] - off_gt) / (target[[d]].bbox[:,[2,3]]-target[[d]].bbox[:,[0,1]])
                             err_off = err_off[key_label]
-                            stats_wh.append(err_off.abs().mean())
+                            
+                            if key_label.nelement() != 0:
+                                stats_wh.append(err_off.abs().mean())
 
                             if len(detected) == nl:
                                 break

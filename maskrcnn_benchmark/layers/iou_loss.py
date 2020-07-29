@@ -50,7 +50,11 @@ class IOULoss(nn.Module):
             losses = 1 - ious + iou_dist
         else:
             raise NotImplementedError
-
+        
+        if target.shape[1] == 5:
+        
+            losses = losses * target[:, 4] 
+         
         if weight is not None and weight.sum() > 0:
             return (losses * weight).sum() / weight.sum()
         else:

@@ -138,10 +138,15 @@ class FCOSLossComputation(object):
             
             # fix 6
             # offset target format [-x -y x y]
-            off_x = bboxes[:, 4][None].repeat(repeatX, 1)
-            off_y = bboxes[:, 5][None].repeat(repeatY, 1)
+            sample_off = (bboxes[:, -2:]!=0).float().sum(1).clamp(0,1)
+            off_x =  bboxes[:, 4] - (bboxes[:, 0] + bboxes[:, 2]) / 2
+            off_y =  bboxes[:, 5] - (bboxes[:, 1] + bboxes[:, 3]) / 2
+
+            sample_off = sample_off[None].repeat(repeatX, 1)
+            off_x = off_x[None].repeat(repeatX, 1)
+            off_y = off_y[None].repeat(repeatY, 1)
             target_num = off_x.shape[1]
-            offset_t = torch.zeros([repeatX, target_num, 4]).to(device)
+            offset_t = torch.zeros([repeatX, target_num, 5]).to(device)
 
             x_neg, x_pos = off_x <= 0, off_x > 0
             y_neg, y_pos = off_y <= 0, off_y > 0 
@@ -149,6 +154,7 @@ class FCOSLossComputation(object):
             offset_t[:, :, 2][x_pos] = off_x[x_pos]
             offset_t[:, :, 1][y_neg] = -off_y[y_neg]
             offset_t[:, :, 3][y_pos] = off_y[y_pos]
+            offset_t[:, :, 4] = sample_off
             
             '''
             scales = torch.where(object_sizes_of_interest[:,1]==INF, \
@@ -228,7 +234,7 @@ class FCOSLossComputation(object):
             box_cls_flatten.append(box_cls[l].permute(0, 2, 3, 1).reshape(-1, num_classes))
             box_regression_flatten.append(box_regression[l].permute(0, 2, 3, 1).reshape(-1, 8)) # fix 6
             labels_flatten.append(labels[l].reshape(-1))
-            reg_targets_flatten.append(reg_targets[l].reshape(-1, 8)) # fix 6
+            reg_targets_flatten.append(reg_targets[l].reshape(-1, 9)) # fix 6
             centerness_flatten.append(centerness[l].permute(0, 2, 3, 1).reshape(-1))
         
         box_cls_flatten = torch.cat(box_cls_flatten, dim=0)
@@ -255,8 +261,8 @@ class FCOSLossComputation(object):
             )
             
             offset_loss = self.offset_reg_loss_func(
-                box_regression_flatten[:,4:8],
-                reg_targets_flatten[:,4:8],
+                box_regression_flatten[:,4:9],
+                reg_targets_flatten[:,4:9],
                 centerness_targets,
             )
             
