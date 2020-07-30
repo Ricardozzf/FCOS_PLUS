@@ -136,14 +136,21 @@ class FCOSLossComputation(object):
             repeatY = t.shape[0]
             
             # fix 6
+            off_x =  bboxes[:, 4] - (bboxes[:, 0] + bboxes[:, 2]) / 2
+            off_y =  bboxes[:, 5] - (bboxes[:, 1] + bboxes[:, 3]) / 2
+            off_c =  torch.sqrt(w**2 + h**2).unsqueeze(2)
             
+            off_x = off_x[None].repeat(repeatX, 1).unsqueeze(2)
+            off_y = off_y[None].repeat(repeatY, 1).unsqueeze(2)
+            
+            '''
             scales = torch.where(object_sizes_of_interest[:,1]==INF, \
                 object_sizes_of_interest.new_tensor(800).expand(object_sizes_of_interest.shape[0]), \
                     object_sizes_of_interest[:,1])
             scales *= 1.5
             vw = (bboxes[:, 4][None].repeat(repeatX, 1) / scales[:,None]).unsqueeze(2)
             vh = (bboxes[:, 5][None].repeat(repeatY, 1) / scales[:,None]).unsqueeze(2)
-            
+            '''
             reg_targets_per_im = torch.stack([l, t, r, b], dim=2)
             if self.center_sample:
                 is_in_boxes = self.get_sample_region(
@@ -169,7 +176,7 @@ class FCOSLossComputation(object):
             # if there are still more than one objects for a location,
             # we choose the one with minimal area
             locations_to_min_area, locations_to_gt_inds = locations_to_gt_area.min(dim=1)
-            reg_targets_per_im = torch.cat([reg_targets_per_im, vw, vh], dim=2) # fix 6
+            reg_targets_per_im = torch.cat([reg_targets_per_im, off_x, off_y, off_c], dim=2) # fix 6
             reg_targets_per_im = reg_targets_per_im[range(len(locations)), locations_to_gt_inds]
             labels_per_im = labels_per_im[locations_to_gt_inds]
             labels_per_im[locations_to_min_area == INF] = 0
@@ -214,7 +221,7 @@ class FCOSLossComputation(object):
             box_cls_flatten.append(box_cls[l].permute(0, 2, 3, 1).reshape(-1, num_classes))
             box_regression_flatten.append(box_regression[l].permute(0, 2, 3, 1).reshape(-1, 6)) # fix 6
             labels_flatten.append(labels[l].reshape(-1))
-            reg_targets_flatten.append(reg_targets[l].reshape(-1, 6)) # fix 6
+            reg_targets_flatten.append(reg_targets[l].reshape(-1, 7)) # fix 6
             centerness_flatten.append(centerness[l].permute(0, 2, 3, 1).reshape(-1))
         
         box_cls_flatten = torch.cat(box_cls_flatten, dim=0)
@@ -241,7 +248,7 @@ class FCOSLossComputation(object):
             )
             offset_loss = smooth_l1_loss(
                 box_regression_flatten[:,4:6],
-                reg_targets_flatten[:,4:6],
+                reg_targets_flatten[:,4:7],
                 weight=centerness_targets
             )
             centerness_loss = self.centerness_loss_func(

@@ -176,11 +176,13 @@ class BoxList(object):
         image_width, image_height = self.size
         if self.vis:
             xmin, ymin, xmax, ymax, v_w, v_h = self._split_into_xyxywh()
+            indice = (v_w!=0) | (v_h!=0)
+            
             if method == FLIP_LEFT_RIGHT:
                 TO_REMOVE = 1
-                v_w =  - v_w 
+                v_w[indice] =  image_width - v_w[indice] - TO_REMOVE 
             elif method == FLIP_TOP_BOTTOM:
-                v_h = - v_h  
+                v_h[indice] = image_height - v_h[indice] 
             tuple_add = (v_w, v_h)
         else:
             xmin, ymin, xmax, ymax = self._split_into_xyxy()

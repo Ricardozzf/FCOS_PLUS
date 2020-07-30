@@ -126,7 +126,7 @@ class FCOSPostProcessor(torch.nn.Module):
         for n, (l, o, b, c) in enumerate(zip(locations, box_cls, box_regression, centerness)):
             sampled_boxes.append(
                 self.forward_for_single_feature_map(
-                    l, o, b, c, image_sizes, object_sizes_of_interest[n]
+                    l, o, b, c, image_sizes, #object_sizes_of_interest[n]
                 )
             )
 
