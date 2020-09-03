@@ -94,6 +94,9 @@ class FCOSPostProcessor(torch.nn.Module):
                                     -per_box_regression[:, 4], per_box_regression[:, 6])
             offset_y = torch.where(per_box_regression[:, 5] > per_box_regression[:, 7],
                                     -per_box_regression[:, 5], per_box_regression[:, 7])
+            
+            offset_x = offset_x + (2 * per_locations[:, 0] + per_box_regression[:, 2] - per_box_regression[:, 0]) / 2
+            offset_y = offset_y + (2 * per_locations[:, 1] + per_box_regression[:, 3] - per_box_regression[:, 1]) / 2
 
 
             detections = torch.stack([

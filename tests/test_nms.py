@@ -213,7 +213,7 @@ class TestNMS(unittest.TestCase):
         )
         keep_indices = box_nms(boxes, scores, 0.5)
         keep_indices = np.sort(keep_indices)
-
+        print(keep_indices)
         np.testing.assert_array_equal(keep_indices, gt_indices)
 
 

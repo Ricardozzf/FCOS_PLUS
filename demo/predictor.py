@@ -12,6 +12,8 @@ from maskrcnn_benchmark.utils import cv2_util
 
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_nms, boxlist_iou
 
+
+
 class COCODemo(object):
     # COCO categories for pretty print
     CATEGORIES = [
@@ -86,7 +88,7 @@ class COCODemo(object):
         )
         return transform
 
-    def run_on_opencv_image(self, image, targets=None, err=None):
+    def run_on_opencv_image(self, image, targets=None, max_eucli=[0]):
         """
         Arguments:
             image (np.ndarray): an image as returned by OpenCV
@@ -98,48 +100,47 @@ class COCODemo(object):
         """
         predictions = self.compute_prediction(image)
         top_predictions = self.select_top_predictions(predictions)
-
+        im_w, im_h = targets.size
+        nor_cof = max(im_h, im_w)
         top_predictions = boxlist_nms(top_predictions,0.5)
+
         if targets is not None and top_predictions.bbox.shape[0]!=0:
-            
+
             iou_m = boxlist_iou(top_predictions, targets)
             try:
-                _, index = iou_m.max(1)
+                iou_thresh, index = iou_m.max(1)
             except RuntimeError:
                 import pdb; pdb.set_trace()
             predict_match = targets[index]
-            
             predict_match.cat_vwvh()
+
+            top_index = iou_thresh>0.5
+
+            index = torch.logical_and(predict_match.bbox[:,4]!=0, predict_match.bbox[:,5]!=0)
+            eucli_off = torch.zeros(predict_match.bbox.shape[0])
             
-            for i in range(predict_match.bbox.shape[0]):
-                '''
-                print("pre_w:{}   pre_h:{}   gt_w:{}   gt_v:{}".format(top_predictions.bbox[i,4], \
-                    top_predictions.bbox[i,5], predict_match.bbox[i,4], predict_match.bbox[i,5]))
-                '''
-                
-                
-                err_w = ((top_predictions.bbox[i,4]-predict_match.bbox[i,6])/predict_match.bbox[i,6]).numpy()
-                err_h = ((top_predictions.bbox[i,5]-predict_match.bbox[i,7])/predict_match.bbox[i,7]).numpy()
-                gt_err_w = ((top_predictions.bbox[i,2]-top_predictions.bbox[i,0]-predict_match.bbox[i,2]+predict_match.bbox[i,0])/(predict_match.bbox[i,2]-predict_match.bbox[i,0])).numpy()
-                gt_err_h = ((top_predictions.bbox[i,3]-top_predictions.bbox[i,1]-predict_match.bbox[i,3]+predict_match.bbox[i,1])/(predict_match.bbox[i,3]-predict_match.bbox[i,1])).numpy()
-                iou_v = (predict_match.area()[i] / (predict_match.bbox[i,5] * predict_match.bbox[i,6])).numpy()
-                '''
-                if iou_v > 1.5:
-                    raise ValueError("iou_v must smaller than 1!")
-                '''
-                err.append([err_w, err_h,gt_err_w, gt_err_h,iou_v])
-            
+            eucli_off[index] = (predict_match.bbox[index][:,4] - top_predictions.bbox[index][:,4])**2 + \
+                    (predict_match.bbox[index][:,5] - top_predictions.bbox[index][:,5])**2
+            bbox_wh = (predict_match.bbox[:,2]-predict_match.bbox[:,0])*(predict_match.bbox[:,3]-predict_match.bbox[:,1])
+            eucli_off = (eucli_off / bbox_wh).unsqueeze(1)
+            predict_match.bbox = torch.cat([predict_match.bbox, eucli_off], 1)
+        else:
+            return None, None
+        
+        predict_match.bbox = predict_match.bbox[top_index]
+        top_predictions.bbox = top_predictions.bbox[top_index]
+
         result = image.copy()
         if self.show_mask_heatmaps:
             return self.create_mask_montage(result, top_predictions)
-        #result = self.overlay_boxes(result, top_predictions, predict_match)
+        result, err_eucli = self.overlay_boxes(result, top_predictions, predict_match, max_eucli)
         if self.cfg.MODEL.MASK_ON:
             result = self.overlay_mask(result, top_predictions)
         if self.cfg.MODEL.KEYPOINT_ON:
             result = self.overlay_keypoints(result, top_predictions)
-        result = self.overlay_class_names(result, top_predictions)
+        #result = self.overlay_class_names(result, top_predictions)
 
-        return result
+        return result, err_eucli
 
     def compute_prediction(self, original_image):
         """
@@ -195,9 +196,10 @@ class COCODemo(object):
         scores = predictions.get_field("scores")
         labels = predictions.get_field("labels")
         #thresholds = self.confidence_thresholds_for_classes[(labels - 1).long()]
+        
         keep = torch.nonzero(scores > self.confidence_threshold).squeeze(1)
         predictions = predictions[keep]
-        scores = predictions.get_field("scores")
+        scores = predictions.get_field("scores") 
         _, idx = scores.sort(0, descending=True)
         return predictions[idx]
 
@@ -209,7 +211,7 @@ class COCODemo(object):
         colors = (colors % 255).numpy().astype("uint8")
         return colors
 
-    def overlay_boxes(self, image, predictions, predict_match):
+    def overlay_boxes(self, image, predictions, predict_match=None, max_eucli=[0]):
         """
         Adds the predicted boxes on top of the image
 
@@ -224,12 +226,25 @@ class COCODemo(object):
 
         colors = self.compute_colors_for_labels(labels).tolist()
         color_f = (0,0,255)
+        t_image = image
+        
+        sc, inds = t_boxes[:,-1].sort(descending=True)
+        nums = (t_boxes[:,-1]>0).sum()
+        nums = min(nums, 3)
+        tmp_eucli = 0
+        
+        for ind in inds[:nums]:
+            box = boxes[ind,:]
+            color = color_f
+            
+            tmp_eucli += t_boxes[ind,-1].abs()
 
-        for box, color, t_box in zip(boxes, colors, t_boxes):
             box = box.to(torch.int64)
             top_left, bottom_right = box[:2].tolist(), box[2:4].tolist()
 
-            pre_fw, pre_fh = box[4].tolist(), box[5].tolist()
+            head_x, head_y = box[4].tolist(), box[5].tolist()
+            
+            '''
             t_x1, t_y1 = t_box[4].tolist(), t_box[5].tolist()
             t_w, t_h = t_box[6].tolist(), t_box[7].tolist()
             t_cx = t_x1 + 0.5 * t_w
@@ -243,13 +258,17 @@ class COCODemo(object):
             pre_y1 = int(t_cy - 0.5 * pre_fh)
             pre_x2 = int(t_cx + 0.5 * pre_fw)
             pre_y2 = int(t_cy + 0.5 * pre_fh)
+            
             t_image = image.copy()
             t_image = cv2.rectangle(
                 t_image, (t_x1, t_y1), (t_x2, t_y2), tuple(color), 3
             )
+            '''
+            
             t_image = cv2.rectangle(
-                t_image, (pre_x1,pre_y1), (pre_x2,pre_y2), color_f, 3
+                t_image, tuple(top_left), tuple(bottom_right), (255,0,0), 3
             )
+            t_image = cv2.circle(t_image, (head_x, head_y), 5,(0,0,255), -1)
             '''
             cv2.imshow("COCO detections", t_image)
             key = cv2.waitKey(0)
@@ -258,7 +277,17 @@ class COCODemo(object):
             elif key == ord('s'):
                 break
             '''
-        return image
+
+        if nums == 0:
+            tmp_eucli = 0
+        else:    
+            tmp_eucli /= nums
+        min_ind = max_eucli.argmin()
+        if tmp_eucli > max_eucli[min_ind]:
+            max_eucli[min_ind] = tmp_eucli
+            cv2.imwrite(f"off_pic/res_{min_ind.item()}.jpg",t_image)
+        
+        return image, tmp_eucli
 
     def overlay_mask(self, image, predictions):
         """
